@@ -20,6 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - 프론트엔드는 npm과 빌드 도구 없이 페이지당 HTML 파일 하나(CSS, JS 인라인)로 만든다. 파일을 열기만 해도 동작해야 한다.
 - 파일이 서로 독립이라 공통 색과 글꼴은 공유 파일이 없다. 모든 페이지에 같은 값을 복사해 쓰므로, 디자인 값을 바꿀 때는 5개 파일을 모두 맞춘다.
+- 디자인은 Vapor UI(구름) 스타일: 흰 표면 + 옅은 회색 배경, 1px 헤어라인, 파란 primary(#2A72E5), 반경 8px, 글꼴 Pretendard(굵기 400/500/700만 사용, 600 없음), 그라디언트·블러 없음, 버튼은 짧은 명령형, 문구는 존댓말. 기준 값은 `index.html`의 `:root` 토큰이고 다크 모드는 `prefers-color-scheme`로 처리한다.
 - DB는 사용자의 Supabase 프로젝트 `day04-cafe`. 테이블 초안은 `menus`, `sales`, `reviews`(확정 전).
 - AI 기능은 Edge Function `cafe-ai` 하나가 처리한다. 답글, 홍보 문구, 오늘 브리핑은 요청 값으로 구분한다.
 - AI 키는 Edge Function의 비밀 값에만 두고, 브라우저 코드에는 Supabase 공개(anon) 키만 쓴다. 로그인이 없으므로 anon 키로 허용할 범위(RLS)를 정해서 적용한다.

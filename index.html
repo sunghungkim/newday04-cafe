@@ -4,91 +4,135 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>골목카페 대시보드</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
 <style>
-  /* 공통 디자인 값: 모든 페이지(sales/menu/reviews/promo)에 같은 값을 복사해 쓴다 */
+  /* 공통 디자인 값 (Vapor UI 기준): 모든 페이지(sales/menu/reviews/promo)에 같은 값을 복사해 쓴다 */
   :root {
-    --bg: #faf5ee;
-    --surface: #ffffff;
-    --text: #3b2a20;
-    --muted: #8a7566;
-    --primary: #8b5a3c;
-    --primary-soft: #f1e4d6;
-    --line: #e8dccd;
-    --radius: 14px;
+    --canvas: #FFFFFF;          /* 카드·메뉴 표면 */
+    --canvas-200: #F7F7F7;      /* 페이지 배경 */
+    --border: #C6C6C6;          /* 1px 헤어라인 */
+    --hover: #F7F7F7;
+    --text: #262626;
+    --text-normal: #4C4C4C;
+    --text-hint: #5D5D5D;
+    --primary: #2A72E5;
+    --primary-fg: #0957C8;
+    --primary-soft: #EFF8FF;
+    --success: #058765;
+    --warning: #D34701;
+    --danger: #DA3944;
+    --radius: 8px;
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
     --font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --canvas: #232323;
+      --canvas-200: #282828;
+      --border: #474747;
+      --hover: #363636;
+      --text: #FAFAFA;
+      --text-normal: #BEBEBE;
+      --text-hint: #A7A7A7;
+      --primary: #368AED;
+      --primary-fg: #56ACF9;
+      --primary-soft: #001286;
+      --success: #46B993;
+      --warning: #F58A56;
+      --danger: #FD8283;
+    }
   }
 
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
     display: flex;
-    background: var(--bg);
+    background: var(--canvas-200);
     color: var(--text);
     font-family: var(--font);
-    font-size: 18px;
+    font-size: 16px;
+    line-height: 24px;
   }
 
   /* 왼쪽 메뉴 */
   .sidebar {
-    width: 220px;
+    width: 232px;
     flex-shrink: 0;
-    background: var(--surface);
-    border-right: 1px solid var(--line);
-    padding: 24px 14px;
+    background: var(--canvas);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
   .brand {
-    font-size: 22px;
+    font-size: 20px;
+    line-height: 30px;
     font-weight: 700;
-    padding: 4px 12px 20px;
-    color: var(--primary);
+    letter-spacing: -0.2px;
+    padding: 0 12px 24px;
   }
   .brand small {
     display: block;
-    font-size: 13px;
+    font-size: 14px;
+    line-height: 22px;
     font-weight: 400;
-    color: var(--muted);
-    margin-top: 2px;
+    letter-spacing: 0;
+    color: var(--text-hint);
   }
   .nav-btn {
     font: inherit;
+    font-weight: 500;
+    height: 48px;
     text-align: left;
-    padding: 14px 16px;
+    padding: 0 16px;
     border: 0;
     border-radius: var(--radius);
     background: transparent;
-    color: var(--text);
+    color: var(--text-normal);
     cursor: pointer;
   }
-  .nav-btn:hover { background: var(--primary-soft); }
-  .nav-btn.active { background: var(--primary); color: #fff; font-weight: 700; }
-  .nav-btn:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+  .nav-btn:hover { background: var(--hover); }
+  .nav-btn.active { background: var(--primary-soft); color: var(--primary-fg); font-weight: 700; }
+  .nav-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
   /* 가운데 화면 */
   .stage { flex: 1; position: relative; min-width: 0; }
-  iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
+  iframe { width: 100%; height: 100%; border: 0; display: block; background: var(--canvas-200); }
   .coming {
     position: absolute;
     inset: 0;
     display: none;
     align-items: center;
     justify-content: center;
-    flex-direction: column;
-    gap: 8px;
-    color: var(--muted);
-    text-align: center;
+    padding: 24px;
   }
   .coming.show { display: flex; }
-  .coming strong { font-size: 32px; color: var(--text); }
+  .coming-card {
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 40px 48px;
+    text-align: center;
+  }
+  .coming-card small { font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .coming-card strong {
+    display: block;
+    font-size: 24px;
+    line-height: 36px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    margin: 2px 0 4px;
+  }
+  .coming-card span { font-size: 14px; line-height: 22px; color: var(--text-normal); }
 
   /* 좁은 화면: 메뉴를 위로 */
   @media (max-width: 640px) {
-    body { flex-direction: column; font-size: 16px; }
-    .sidebar { width: 100%; flex-direction: row; overflow-x: auto; padding: 10px; border-right: 0; border-bottom: 1px solid var(--line); }
+    body { flex-direction: column; }
+    .sidebar { width: 100%; flex-direction: row; overflow-x: auto; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--border); }
     .brand { display: none; }
-    .nav-btn { white-space: nowrap; padding: 10px 14px; }
+    .nav-btn { white-space: nowrap; }
   }
 </style>
 </head>
@@ -105,8 +149,11 @@
   <main class="stage">
     <iframe id="frame" title="내용 화면"></iframe>
     <div id="coming" class="coming" role="status">
-      <strong>준비중</strong>
-      <span id="coming-name"></span>
+      <div class="coming-card">
+        <small>Coming Soon</small>
+        <strong>준비중</strong>
+        <span id="coming-name"></span>
+      </div>
     </div>
   </main>
 
@@ -129,7 +176,7 @@
   function showComing(label) {
     frame.removeAttribute("src");
     frame.style.visibility = "hidden";
-    comingName.textContent = label + " 화면은 곧 만들어져요";
+    comingName.textContent = label + " 화면은 곧 준비됩니다.";
     coming.classList.add("show");
   }
 
