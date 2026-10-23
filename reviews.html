@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>리뷰</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+  /* 공통 디자인 값 (index.html의 :root 와 같은 값) */
+  :root {
+    --canvas: #FFFFFF;
+    --canvas-200: #F7F7F7;
+    --border: #C6C6C6;
+    --hover: #F7F7F7;
+    --text: #262626;
+    --text-normal: #4C4C4C;
+    --text-hint: #5D5D5D;
+    --primary: #2A72E5;
+    --primary-fg: #0957C8;
+    --primary-soft: #EFF8FF;
+    --success: #058765;
+    --success-soft: #EDFAF4;
+    --warning: #D34701;
+    --danger: #DA3944;
+    --danger-fg: #BB1225;
+    --danger-soft: #FFF5F4;
+    --star: #FBBD05;
+    --radius: 8px;
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
+    --font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --canvas: #232323;
+      --canvas-200: #282828;
+      --border: #474747;
+      --hover: #363636;
+      --text: #FAFAFA;
+      --text-normal: #BEBEBE;
+      --text-hint: #A7A7A7;
+      --primary: #368AED;
+      --primary-fg: #56ACF9;
+      --primary-soft: #001286;
+      --success: #46B993;
+      --success-soft: #003016;
+      --warning: #F58A56;
+      --danger: #F14F5A;
+      --danger-fg: #FD8283;
+      --danger-soft: #590000;
+      --star: #F4B402;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px;
+    background: var(--canvas-200);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+  h1 { margin: 0; font-size: 24px; line-height: 36px; font-weight: 700; letter-spacing: -0.3px; }
+  .sub { margin: 0; font-size: 14px; line-height: 22px; color: var(--text-hint); }
+
+  .summary { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .summary strong { color: var(--text); font-weight: 700; }
+
+  .list { display: flex; flex-direction: column; gap: 16px; }
+  .card {
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 20px 24px;
+  }
+  .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .stars { font-size: 18px; letter-spacing: 1px; color: var(--star); line-height: 24px; }
+  .stars .off { color: var(--border); }
+  .date { font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .spacer { flex: 1; }
+  .content { margin: 12px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  .badge {
+    display: inline-block; padding: 0 8px; border-radius: 4px; border: 1px solid;
+    font-size: 12px; line-height: 18px; font-weight: 700;
+  }
+  .badge.good { color: var(--success); background: var(--success-soft); border-color: var(--success); }
+  .badge.normal { color: var(--text-normal); background: var(--canvas-200); border-color: var(--border); }
+  .badge.bad { color: var(--danger-fg); background: var(--danger-soft); border-color: var(--danger); }
+
+  .reply {
+    margin-top: 16px; padding: 12px 16px;
+    background: var(--canvas-200); border-radius: var(--radius);
+  }
+  .reply .label { font-size: 14px; line-height: 22px; font-weight: 500; color: var(--text-hint); }
+  .reply p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .reply .err { color: var(--danger-fg); }
+
+  button {
+    font: inherit; font-weight: 500; height: 36px; padding: 0 16px;
+    border-radius: var(--radius); border: 1px solid var(--border);
+    background: var(--canvas); color: var(--text-normal); cursor: pointer; white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  button.primary:hover:not(:disabled) { background: var(--primary-fg); border-color: var(--primary-fg); }
+
+  .empty, .error { padding: 48px 0; text-align: center; color: var(--text-hint); }
+  .error { color: var(--danger-fg); }
+  .error button { margin-top: 12px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    max-width: calc(100% - 32px);
+    padding: 12px 20px; border-radius: var(--radius);
+    background: var(--text); color: var(--canvas);
+    font-size: 14px; line-height: 22px; box-shadow: var(--shadow-sm);
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.err { background: var(--danger-fg); color: #fff; }
+
+  @media (max-width: 720px) {
+    body { padding: 16px; }
+    .card { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>리뷰</h1>
+      <p class="sub">"AI 분석"을 누르면 감정과 사장님 답글 초안을 만들어 저장합니다. 답글은 읽어 보고 고쳐서 쓰세요.</p>
+    </header>
+
+    <div class="summary" id="summary" aria-live="polite"></div>
+    <div class="list" id="list"><div class="empty">불러오는 중입니다.</div></div>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+
+<script>
+  const SUPABASE_URL = "https://hiuffyznumdigdxocgnx.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_V-q98Dnfc78o0StvpnpAbg_BBm1kRG8"; // 공개용(publishable) 키
+  const AI_URL = `${SUPABASE_URL}/functions/v1/cafe-ai`;
+  const SENTIMENT_CLASS = { "좋음": "good", "보통": "normal", "아쉬움": "bad" };
+
+  const $ = id => document.getElementById(id);
+  let reviews = [];
+
+  function el(tag, props = {}, ...children) {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  }
+
+  let toastTimer;
+  function toast(msg, isError) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.toggle("err", !!isError);
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 3500);
+  }
+
+  async function db(path, options = {}) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+      ...options,
+      headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=representation", ...(options.headers || {}) },
+    });
+    if (!res.ok) throw new Error(await res.text() || res.statusText);
+    return res.json();
+  }
+
+  // cafe-ai 의 review: 감정(좋음/보통/아쉬움)과 답글 초안을 받는다
+  async function analyze(review) {
+    const res = await fetch(AI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "review", rating: review.rating, content: review.content }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "AI 분석에 실패했습니다.");
+    return data;
+  }
+
+  const formatDate = iso => new Date(iso).toLocaleString("ko-KR", {
+    timeZone: "Asia/Seoul", month: "long", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+
+  function renderSummary() {
+    const done = reviews.filter(r => r.sentiment).length;
+    const box = $("summary");
+    box.replaceChildren(
+      el("span", {}, "전체 ", el("strong", { textContent: `${reviews.length}개` })),
+      el("span", {}, "분석함 ", el("strong", { textContent: `${done}개` })),
+      el("span", {}, "분석 전 ", el("strong", { textContent: `${reviews.length - done}개` })),
+    );
+  }
+
+  function renderCard(r) {
+    const stars = el("span", { className: "stars" }, "★".repeat(r.rating), el("span", { className: "off", textContent: "★".repeat(5 - r.rating) }));
+    stars.setAttribute("role", "img");
+    stars.setAttribute("aria-label", `별점 ${r.rating}점`);
+
+    const btn = el("button", { type: "button", className: r.sentiment ? "" : "primary", textContent: r.sentiment ? "다시 분석" : "AI 분석" });
+    const top = el("div", { className: "top" }, stars, el("span", { className: "date", textContent: formatDate(r.written_at) }));
+    if (r.sentiment) top.append(el("span", { className: `badge ${SENTIMENT_CLASS[r.sentiment] || "normal"}`, textContent: r.sentiment }));
+    top.append(el("span", { className: "spacer" }), btn);
+
+    const card = el("article", { className: "card" }, top, el("p", { className: "content", textContent: r.content }));
+    if (r.reply) {
+      card.append(el("div", { className: "reply" }, el("div", { className: "label", textContent: "답글 초안" }), el("p", { textContent: r.reply })));
+    }
+
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "분석 중...";
+      try {
+        const { sentiment, reply } = await analyze(r);
+        const [saved] = await db(`reviews?id=eq.${r.id}`, { method: "PATCH", body: JSON.stringify({ sentiment, reply }) });
+        Object.assign(r, { sentiment: saved.sentiment, reply: saved.reply });
+        toast(`분석 결과를 저장했습니다. 감정: ${saved.sentiment}`);
+      } catch (e) {
+        toast(e.message || "분석하지 못했습니다. 다시 시도해 주세요.", true);
+      }
+      render();
+    });
+    return card;
+  }
+
+  function render() {
+    renderSummary();
+    $("list").replaceChildren(...(reviews.length
+      ? reviews.map(renderCard)
+      : [el("div", { className: "empty", textContent: "아직 리뷰가 없습니다." })]));
+  }
+
+  async function load() {
+    try {
+      reviews = await db("reviews?select=*&order=written_at.desc", { headers: { Prefer: "" } });
+      render();
+    } catch (e) {
+      const retry = el("button", { type: "button", textContent: "다시 불러오기" });
+      retry.addEventListener("click", load);
+      $("list").replaceChildren(el("div", { className: "error" }, "리뷰를 불러오지 못했습니다.", el("br"), retry));
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

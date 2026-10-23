@@ -165,7 +165,7 @@
     padding: 20px;
   }
   .kpi .label { font-size: 14px; line-height: 22px; color: var(--text-hint); }
-  .kpi .value { font-size: 32px; line-height: 48px; font-weight: 700; letter-spacing: -0.4px; margin: 2px 0; overflow-wrap: anywhere; }
+  .kpi .value { font-size: clamp(22px, 2.9vw, 32px); line-height: 48px; font-weight: 700; letter-spacing: -0.4px; margin: 2px 0; white-space: nowrap; }
   .kpi .value small { font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0; color: var(--text-hint); margin-left: 2px; }
   .kpi .note { font-size: 14px; line-height: 22px; color: var(--text-hint); min-height: 22px; }
   .kpi.alert .value, .kpi.alert .note { color: var(--danger-fg); }
@@ -201,6 +201,22 @@
   details.data-table th, details.data-table td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
   details.data-table th:first-child, details.data-table td:first-child { text-align: left; }
   details.data-table th { font-weight: 500; color: var(--text-hint); }
+  .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: var(--primary-fg); border-color: var(--primary-fg); }
+  .brief-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .brief-head h2 { margin: 0; font-size: 18px; line-height: 26px; font-weight: 700; letter-spacing: -0.1px; }
+  .brief-head p { margin: 0; font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .brief-out { margin-top: 16px; }
+  .brief-out:empty { display: none; }
+  .brief-lines { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .brief-lines li { display: flex; gap: 12px; }
+  .brief-lines .no {
+    flex: none; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--primary-soft); color: var(--primary-fg);
+    font-size: 14px; line-height: 24px; text-align: center; font-weight: 700;
+  }
+  .brief-msg { color: var(--text-normal); }
+  .brief-msg.err { color: var(--danger-fg); }
   .home-error { text-align: center; padding: 48px 0; color: var(--danger-fg); }
   .home-error .btn { margin-top: 12px; }
 
@@ -213,6 +229,7 @@
     .home { padding: 16px; }
     .kpis { grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .kpi .value { font-size: 24px; line-height: 36px; }
+    .brief-head { flex-direction: column; align-items: stretch; }
     .chart { margin-left: 40px; }
   }
   @media (max-width: 900px) {
@@ -419,6 +436,41 @@
       el("div", { className: "chart" }, plot, xlabels), table);
   }
 
+  // 오늘 브리핑: 홈 카드 숫자 4개와 7일 매출을 cafe-ai 의 brief 로 보내 세 줄을 받는다
+  function briefCard(payload) {
+    const btn = el("button", { type: "button", className: "btn primary", textContent: "오늘 브리핑" });
+    const out = el("div", { className: "brief-out", ariaLive: "polite" });
+    out.setAttribute("aria-live", "polite");
+
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "브리핑 만드는 중...";
+      out.replaceChildren(el("div", { className: "brief-msg", textContent: "숫자를 정리하고 있습니다. 10초 안팎 걸립니다." }));
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/cafe-ai`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "brief", today: payload }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "브리핑을 만들지 못했습니다.");
+        out.replaceChildren(el("ol", { className: "brief-lines" },
+          ...data.lines.map((line, i) => el("li", {}, el("span", { className: "no", textContent: String(i + 1) }), el("span", { textContent: line })))));
+        btn.textContent = "다시 브리핑";
+      } catch (e) {
+        out.replaceChildren(el("div", { className: "brief-msg err", textContent: e.message || "브리핑을 만들지 못했습니다. 다시 시도해 주세요." }));
+        btn.textContent = "오늘 브리핑";
+      }
+      btn.disabled = false;
+    });
+
+    return el("section", { className: "card" },
+      el("div", { className: "brief-head" },
+        el("div", {}, el("h2", { textContent: "오늘 브리핑" }), el("p", { textContent: "위 숫자와 최근 7일 매출을 AI가 세 줄로 정리합니다." })),
+        btn),
+      out);
+  }
+
   async function showHome() {
     coming.classList.remove("show");
     frame.removeAttribute("src");
@@ -449,6 +501,16 @@
       const todayRow = days[6], yesterday = days[5];
       const avg = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null;
       const low = menus.filter(m => m.stock <= LOW_STOCK);
+      const briefPayload = {
+        revenue: todayRow.amount,
+        orders: todayRow.count,
+        avgRating: avg === null ? undefined : Number(avg.toFixed(1)),
+        lowStockCount: low.length,
+        lowStockMenus: low.map(m => m.name),
+        yesterdayRevenue: yesterday.amount,
+        yesterdayOrders: yesterday.count,
+        weekly: days.map(d => ({ date: `${d.month}/${d.day}`, revenue: d.amount })),
+      };
 
       body.replaceChildren(
         el("div", { className: "kpis" },
@@ -456,6 +518,7 @@
           kpi("오늘 주문수", String(todayRow.count), "건", `어제 ${yesterday.count}건`),
           kpi("평균 별점", avg === null ? "-" : avg.toFixed(1), avg === null ? "" : "/ 5", avg === null ? "리뷰가 없습니다" : `리뷰 ${reviews.length}개`),
           kpi("재고 부족 메뉴", String(low.length), "개", low.length ? low.map(m => m.name).join(", ") : `재고 ${LOW_STOCK}개 이하 없음`, low.length > 0)),
+        briefCard(briefPayload),
         renderChart(days));
     } catch (e) {
       if (mine !== homeToken) return;

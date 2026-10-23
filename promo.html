@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>홍보 문구</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+  /* 공통 디자인 값 (index.html의 :root 와 같은 값) */
+  :root {
+    --canvas: #FFFFFF;
+    --canvas-200: #F7F7F7;
+    --border: #C6C6C6;
+    --hover: #F7F7F7;
+    --text: #262626;
+    --text-normal: #4C4C4C;
+    --text-hint: #5D5D5D;
+    --primary: #2A72E5;
+    --primary-fg: #0957C8;
+    --primary-soft: #EFF8FF;
+    --success: #058765;
+    --warning: #D34701;
+    --danger: #DA3944;
+    --danger-fg: #BB1225;
+    --danger-soft: #FFF5F4;
+    --radius: 8px;
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
+    --font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --canvas: #232323;
+      --canvas-200: #282828;
+      --border: #474747;
+      --hover: #363636;
+      --text: #FAFAFA;
+      --text-normal: #BEBEBE;
+      --text-hint: #A7A7A7;
+      --primary: #368AED;
+      --primary-fg: #56ACF9;
+      --primary-soft: #001286;
+      --success: #46B993;
+      --warning: #F58A56;
+      --danger: #F14F5A;
+      --danger-fg: #FD8283;
+      --danger-soft: #590000;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px;
+    background: var(--canvas-200);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+  h1 { margin: 0; font-size: 24px; line-height: 36px; font-weight: 700; letter-spacing: -0.3px; }
+  .sub { margin: 0; font-size: 14px; line-height: 22px; color: var(--text-hint); }
+
+  .card {
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 24px;
+  }
+  .card h2 { margin: 0 0 16px; font-size: 18px; line-height: 26px; font-weight: 700; letter-spacing: -0.1px; }
+
+  .form { display: grid; grid-template-columns: 1.4fr 2fr auto; gap: 16px; align-items: end; }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; border: 0; padding: 0; margin: 0; }
+  .field > label, .field > legend { font-size: 14px; line-height: 22px; color: var(--text-normal); font-weight: 500; padding: 0; margin-bottom: 4px; }
+  select {
+    font: inherit; height: 40px; padding: 0 12px; width: 100%; min-width: 0;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--canvas); color: var(--text);
+  }
+  select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+
+  /* 분위기 선택 (라디오를 버튼처럼) */
+  .moods { display: flex; gap: 8px; }
+  .moods label {
+    flex: 1; position: relative; display: block; cursor: pointer;
+  }
+  .moods input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .moods span {
+    display: flex; align-items: center; justify-content: center;
+    height: 40px; padding: 0 12px; white-space: nowrap;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--canvas); color: var(--text-normal); font-weight: 500;
+  }
+  .moods label:hover span { background: var(--hover); }
+  .moods input:checked + span { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-fg); font-weight: 700; }
+  .moods input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  button {
+    font: inherit; font-weight: 500; height: 40px; padding: 0 20px;
+    border-radius: var(--radius); border: 1px solid var(--border);
+    background: var(--canvas); color: var(--text-normal); cursor: pointer; white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  button.primary:hover:not(:disabled) { background: var(--primary-fg); border-color: var(--primary-fg); }
+  button.small { height: 32px; padding: 0 12px; }
+
+  .results { display: flex; flex-direction: column; gap: 16px; }
+  .result { display: flex; gap: 16px; align-items: flex-start; }
+  .result .no {
+    flex: none; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--primary-soft); color: var(--primary-fg);
+    font-size: 14px; line-height: 24px; text-align: center; font-weight: 700;
+  }
+  .result p { flex: 1; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .result-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .result-head h2 { margin: 0; }
+  .result-head .note { font-size: 14px; line-height: 22px; color: var(--text-hint); }
+
+  .empty, .error { padding: 32px 0; text-align: center; color: var(--text-hint); }
+  .error { color: var(--danger-fg); }
+  .loading { padding: 32px 0; text-align: center; color: var(--text-normal); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    max-width: calc(100% - 32px);
+    padding: 12px 20px; border-radius: var(--radius);
+    background: var(--text); color: var(--canvas);
+    font-size: 14px; line-height: 22px; box-shadow: var(--shadow-sm);
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.err { background: var(--danger-fg); color: #fff; }
+
+  @media (max-width: 720px) {
+    body { padding: 16px; }
+    .card { padding: 16px; }
+    .form { grid-template-columns: 1fr; }
+    .moods { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>홍보 문구</h1>
+      <p class="sub">메뉴와 분위기를 고르면 SNS에 올릴 문구 3개를 만들어 드립니다. 마음에 드는 문구는 고쳐서 쓰세요.</p>
+    </header>
+
+    <section class="card" aria-labelledby="make-title">
+      <h2 id="make-title">문구 만들기</h2>
+      <form id="form" class="form">
+        <div class="field">
+          <label for="f-menu">메뉴</label>
+          <select id="f-menu" required><option value="">불러오는 중...</option></select>
+        </div>
+        <fieldset class="field">
+          <legend>분위기</legend>
+          <div class="moods" id="moods"></div>
+        </fieldset>
+        <button type="submit" class="primary" id="make-btn" disabled>문구 만들기</button>
+      </form>
+    </section>
+
+    <section class="card" aria-live="polite">
+      <div id="result"><div class="empty">메뉴와 분위기를 고르고 "문구 만들기"를 눌러 주세요.</div></div>
+    </section>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+
+<script>
+  const SUPABASE_URL = "https://hiuffyznumdigdxocgnx.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_V-q98Dnfc78o0StvpnpAbg_BBm1kRG8"; // 공개용(publishable) 키
+  const AI_URL = `${SUPABASE_URL}/functions/v1/cafe-ai`;
+  const MOODS = ["따뜻하게", "재미있게", "짧게"];
+
+  const $ = id => document.getElementById(id);
+
+  function el(tag, props = {}, ...children) {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  }
+
+  let toastTimer;
+  function toast(msg, isError) {
+    const t = $("toast");
+    t.textContent = msg;
+    t.classList.toggle("err", !!isError);
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 3000);
+  }
+
+  /* 분위기 라디오 */
+  $("moods").replaceChildren(...MOODS.map((m, i) => el("label", {},
+    el("input", { type: "radio", name: "mood", value: m, checked: i === 0 }),
+    el("span", { textContent: m }))));
+
+  /* 메뉴 목록 */
+  async function loadMenus() {
+    const sel = $("f-menu");
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/menus?select=id,name&order=category.asc,name.asc`, { headers: { apikey: SUPABASE_KEY } });
+      if (!res.ok) throw new Error();
+      const menus = await res.json();
+      sel.replaceChildren(
+        el("option", { value: "", textContent: menus.length ? "메뉴를 선택하세요" : "등록된 메뉴가 없습니다" }),
+        ...menus.map(m => el("option", { value: m.name, textContent: m.name })));
+      $("make-btn").disabled = !menus.length;
+    } catch (e) {
+      sel.replaceChildren(el("option", { value: "", textContent: "메뉴를 불러오지 못했습니다" }));
+    }
+  }
+
+  async function copy(textValue) {
+    try {
+      await navigator.clipboard.writeText(textValue);
+    } catch {
+      // 클립보드 권한이 없는 환경: 임시 입력칸으로 복사
+      const ta = el("textarea", { value: textValue });
+      ta.style.cssText = "position:fixed;opacity:0";
+      document.body.append(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      if (!ok) return toast("복사하지 못했습니다. 문구를 직접 선택해 복사해 주세요.", true);
+    }
+    toast("문구를 복사했습니다.");
+  }
+
+  function showPosts(menu, mood, posts) {
+    const items = posts.map((p, i) => {
+      const btn = el("button", { type: "button", className: "small", textContent: "복사" });
+      btn.setAttribute("aria-label", `${i + 1}번 문구 복사`);
+      btn.addEventListener("click", () => copy(p));
+      return el("div", { className: "result" }, el("span", { className: "no", textContent: String(i + 1) }), el("p", { textContent: p }), btn);
+    });
+    $("result").replaceChildren(
+      el("div", { className: "result-head" }, el("h2", { textContent: "홍보 문구 3개" }), el("span", { className: "note", textContent: `${menu} · ${mood}` })),
+      el("div", { className: "results" }, ...items));
+  }
+
+  $("form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const menu = $("f-menu").value;
+    const mood = document.querySelector("input[name=mood]:checked").value;
+    if (!menu) return toast("메뉴를 선택해 주세요.", true);
+
+    const btn = $("make-btn");
+    btn.disabled = true;
+    btn.textContent = "만드는 중...";
+    $("result").replaceChildren(el("div", { className: "loading", textContent: "문구를 만들고 있습니다. 10초 안팎 걸립니다." }));
+    try {
+      const res = await fetch(AI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "promo", menu, mood }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "문구를 만들지 못했습니다.");
+      showPosts(menu, mood, data.posts);
+    } catch (err) {
+      $("result").replaceChildren(el("div", { className: "error", textContent: err.message || "문구를 만들지 못했습니다. 다시 시도해 주세요." }));
+    }
+    btn.disabled = false;
+    btn.textContent = "문구 만들기";
+  });
+
+  loadMenus();
+</script>
+</body>
+</html>
