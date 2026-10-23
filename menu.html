@@ -112,7 +112,7 @@
   .list-head h2 { margin: 0; }
   .count { font-size: 14px; line-height: 22px; color: var(--text-hint); }
   .table-scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  table { width: 100%; border-collapse: collapse; min-width: 720px; }
   th {
     text-align: left;
     font-size: 14px; line-height: 22px; font-weight: 500;
@@ -126,8 +126,11 @@
   td.name { font-weight: 500; }
   td.cat { color: var(--text-normal); }
   td input { width: 110px; height: 36px; }
-  td.act { text-align: right; padding-right: 0; }
+  td.act { text-align: right; padding-right: 0; white-space: nowrap; }
   td.act button { height: 36px; padding: 0 16px; }
+  td.act button + button { margin-left: 8px; }
+  button.danger { color: var(--danger-fg); border-color: var(--danger); }
+  button.danger:hover:not(:disabled) { background: var(--danger-soft); }
 
   /* 재고 5개 이하: 빨간색 */
   tr.low td.name, tr.low td.stock-cell input { color: var(--danger-fg); }
@@ -249,6 +252,8 @@
     priceIn.setAttribute("aria-label", `${m.name} 가격`);
     stockIn.setAttribute("aria-label", `${m.name} 재고`);
     const saveBtn = el("button", { type: "button", textContent: "저장", disabled: true });
+    const delBtn = el("button", { type: "button", className: "danger", textContent: "삭제" });
+    delBtn.setAttribute("aria-label", `${m.name} 삭제`);
     const badge = el("span", { className: "badge", textContent: "재고 부족" });
     const nameCell = el("td", { className: "name" }, m.name);
     const tr = el("tr", {},
@@ -256,7 +261,7 @@
       el("td", { className: "cat", textContent: m.category }),
       el("td", { className: "num" }, priceIn),
       el("td", { className: "num stock-cell" }, stockIn),
-      el("td", { className: "act" }, saveBtn),
+      el("td", { className: "act" }, saveBtn, delBtn),
     );
 
     const parse = input => (input.value.trim() === "" ? NaN : Number(input.value));
@@ -286,11 +291,27 @@
       refresh();
     }
 
+    async function remove() {
+      if (!confirm(`'${m.name}' 메뉴를 삭제할까요?\n지난 판매 내역은 그대로 남습니다.`)) return;
+      saveBtn.disabled = delBtn.disabled = true;
+      try {
+        await api(`?id=eq.${m.id}`, { method: "DELETE" });
+        menus = menus.filter(x => x !== m);
+        render();
+        toast(`${m.name} 삭제했습니다.`);
+      } catch (e) {
+        toast("삭제하지 못했습니다. 다시 시도해 주세요.", true);
+        delBtn.disabled = false;
+        refresh();
+      }
+    }
+
     [priceIn, stockIn].forEach(i => {
       i.addEventListener("input", refresh);
       i.addEventListener("keydown", e => { if (e.key === "Enter" && !saveBtn.disabled) save(); });
     });
     saveBtn.addEventListener("click", save);
+    delBtn.addEventListener("click", remove);
     refresh();
     return tr;
   }
