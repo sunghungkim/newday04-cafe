@@ -113,6 +113,14 @@
   button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
   button.primary:hover:not(:disabled) { background: var(--primary-fg); border-color: var(--primary-fg); }
 
+  /* 쪽 이동 */
+  .pager { display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap; }
+  .pager button { min-width: 36px; padding: 0 12px; }
+  .pager button[aria-current="page"] { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-fg); font-weight: 700; }
+  .pager .gap { color: var(--text-hint); padding: 0 4px; }
+  .pager-info { margin: 0; text-align: center; font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .pager:empty, .pager-info:empty { display: none; }
+
   .empty, .error { padding: 48px 0; text-align: center; color: var(--text-hint); }
   .error { color: var(--danger-fg); }
   .error button { margin-top: 12px; height: 40px; padding: 0 20px; }
@@ -143,6 +151,8 @@
 
     <div class="summary" id="summary" aria-live="polite"></div>
     <div class="list" id="list"><div class="empty">불러오는 중입니다.</div></div>
+    <nav class="pager" id="pager" aria-label="리뷰 쪽 이동"></nav>
+    <p class="pager-info" id="pager-info" aria-live="polite"></p>
   </div>
   <div id="toast" class="toast" role="status"></div>
 
@@ -152,8 +162,14 @@
   const AI_URL = `${SUPABASE_URL}/functions/v1/cafe-ai`;
   const SENTIMENT_CLASS = { "좋음": "good", "보통": "normal", "아쉬움": "bad" };
 
+  const PAGE_SIZE = 5; // 한 쪽에 보여 줄 리뷰 수
+
   const $ = id => document.getElementById(id);
-  let reviews = [];
+  let reviews = [];      // 지금 쪽의 리뷰
+  let page = 1;          // 지금 쪽 (1부터)
+  let total = 0;         // 전체 리뷰 수
+  let analyzedTotal = 0; // 분석을 마친 전체 리뷰 수
+  let loadingPage = false;
 
   function el(tag, props = {}, ...children) {
     const node = Object.assign(document.createElement(tag), props);
@@ -182,6 +198,18 @@
       throw err;
     }
     return res.json();
+  }
+
+  // 목록과 전체 개수를 함께 받는다. 개수는 응답 머리글 Content-Range("0-4/40")의 슬래시 뒤에 들어 있다
+  async function dbList(path) {
+    const res = await netFetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { apikey: SUPABASE_KEY, Prefer: "count=exact" } });
+    if (!res.ok) {
+      const err = new Error(await res.text() || res.statusText);
+      err.status = res.status;
+      throw err;
+    }
+    const count = Number((res.headers.get("Content-Range") || "").split("/")[1]);
+    return { rows: await res.json(), total: Number.isFinite(count) ? count : null };
   }
 
   // 인터넷 자체가 끊긴 경우에만 network 표시를 달아, 화면 코드에서 난 오류와 구분한다
@@ -233,13 +261,54 @@
   });
 
   function renderSummary() {
-    const done = reviews.filter(r => r.sentiment).length;
-    const box = $("summary");
-    box.replaceChildren(
-      el("span", {}, "전체 ", el("strong", { textContent: `${reviews.length}개` })),
-      el("span", {}, "분석함 ", el("strong", { textContent: `${done}개` })),
-      el("span", {}, "분석 전 ", el("strong", { textContent: `${reviews.length - done}개` })),
+    $("summary").replaceChildren(
+      el("span", {}, "전체 ", el("strong", { textContent: `${total}개` })),
+      el("span", {}, "분석함 ", el("strong", { textContent: `${analyzedTotal}개` })),
+      el("span", {}, "분석 전 ", el("strong", { textContent: `${Math.max(0, total - analyzedTotal)}개` })),
     );
+  }
+
+  // 1 … 4 [5] 6 … 20 처럼 처음·끝과 지금 쪽 주변만 보여 준다 (7쪽 이하면 모두)
+  function pageNumbers(current, last) {
+    if (last <= 7) return Array.from({ length: last }, (_, i) => i + 1);
+    const nums = [...new Set([1, last, current - 1, current, current + 1])].filter(n => n >= 1 && n <= last).sort((a, b) => a - b);
+    const out = [];
+    nums.forEach((n, i) => {
+      if (i && n - nums[i - 1] > 1) out.push("…");
+      out.push(n);
+    });
+    return out;
+  }
+
+  function renderPager() {
+    const last = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const pager = $("pager"), info = $("pager-info");
+    if (last <= 1) {
+      pager.replaceChildren();
+      info.textContent = "";
+      return;
+    }
+    const go = n => el("button", { type: "button", textContent: String(n) });
+    const items = pageNumbers(page, last).map(n => {
+      if (n === "…") return el("span", { className: "gap", textContent: "…" });
+      const b = go(n);
+      b.setAttribute("aria-label", `${n}쪽`);
+      if (n === page) b.setAttribute("aria-current", "page");
+      b.addEventListener("click", () => goTo(n));
+      return b;
+    });
+    const prev = el("button", { type: "button", textContent: "이전", disabled: page <= 1 });
+    const next = el("button", { type: "button", textContent: "다음", disabled: page >= last });
+    prev.addEventListener("click", () => goTo(page - 1));
+    next.addEventListener("click", () => goTo(page + 1));
+    pager.replaceChildren(prev, ...items, next);
+    info.textContent = `${page}쪽 / 총 ${last}쪽 · ${PAGE_SIZE}개씩`;
+  }
+
+  async function goTo(n) {
+    if (loadingPage || n === page) return;
+    await load(n);
+    window.scrollTo({ top: 0 });
   }
 
   function renderCard(r) {
@@ -266,6 +335,7 @@
         saving = true;
         const [saved] = await db(`reviews?id=eq.${r.id}`, { method: "PATCH", body: JSON.stringify({ sentiment, reply }) });
         if (!saved) throw Object.assign(new Error("review not found"), { gone: true }); // 그 사이 지워진 리뷰
+        if (!r.sentiment) analyzedTotal += 1; // 처음 분석한 리뷰면 "분석함" 숫자를 올린다
         Object.assign(r, { sentiment: saved.sentiment, reply: saved.reply });
         toast(`분석 결과를 저장했습니다. 감정: ${saved.sentiment}`);
       } catch (e) {
@@ -279,19 +349,35 @@
 
   function render() {
     renderSummary();
+    renderPager();
     $("list").replaceChildren(...(reviews.length
       ? reviews.map(renderCard)
       : [el("div", { className: "empty", textContent: "아직 리뷰가 없습니다." })]));
   }
 
-  async function load() {
+  // target 쪽의 리뷰 5개와 전체·분석 개수를 불러온다
+  async function load(target = page) {
+    loadingPage = true;
     try {
-      reviews = await db("reviews?select=*&order=written_at.desc", { headers: { Prefer: "" } });
+      const [list, done] = await Promise.all([
+        dbList(`reviews?select=*&order=written_at.desc,id.desc&limit=${PAGE_SIZE}&offset=${(target - 1) * PAGE_SIZE}`),
+        dbList("reviews?select=id&sentiment=not.is.null&limit=1"),
+      ]);
+      total = list.total ?? (target - 1) * PAGE_SIZE + list.rows.length + (list.rows.length === PAGE_SIZE ? 1 : 0);
+      analyzedTotal = done.total ?? 0;
+      const last = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (target > last) return load(last); // 그 사이 리뷰가 줄어 마지막 쪽을 넘은 경우
+      page = target;
+      reviews = list.rows;
       render();
     } catch (e) {
       const retry = el("button", { type: "button", textContent: "다시 불러오기" });
-      retry.addEventListener("click", load);
+      retry.addEventListener("click", () => load(target));
+      $("pager").replaceChildren();
+      $("pager-info").textContent = "";
       $("list").replaceChildren(el("div", { className: "error" }, friendly(e, "리뷰를 불러오"), el("br"), retry));
+    } finally {
+      loadingPage = false;
     }
   }
 

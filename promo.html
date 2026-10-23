@@ -115,6 +115,18 @@
   button.primary:hover:not(:disabled) { background: var(--primary-fg); border-color: var(--primary-fg); }
   button.small { height: 36px; padding: 0 16px; }
 
+  /* 직접 쓰기 */
+  textarea {
+    font: inherit; width: 100%; min-height: 140px; padding: 12px; resize: vertical;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--canvas); color: var(--text);
+  }
+  textarea:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+  .editor-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+  .editor-foot .count { font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .editor-foot .actions { display: flex; gap: 8px; }
+  .result-actions { display: flex; gap: 8px; flex: none; }
+
   .results { display: flex; flex-direction: column; gap: 16px; }
   .result { display: flex; gap: 16px; align-items: flex-start; }
   .result .no {
@@ -174,6 +186,18 @@
 
     <section class="card" aria-live="polite">
       <div id="result"><div class="empty">메뉴와 분위기를 고르고 "문구 만들기"를 눌러 주세요.</div></div>
+    </section>
+
+    <section class="card" aria-labelledby="write-title">
+      <h2 id="write-title">직접 쓰기</h2>
+      <textarea id="f-draft" maxlength="500" aria-label="홍보 문구 직접 쓰기" placeholder="여기에 홍보 문구를 직접 써 보세요. 위에서 만든 AI 문구의 &quot;고쳐 쓰기&quot;를 누르면 이곳으로 가져와 고칠 수 있습니다."></textarea>
+      <div class="editor-foot">
+        <span class="count" id="draft-count" aria-live="polite">0 / 500</span>
+        <div class="actions">
+          <button type="button" id="draft-clear">지우기</button>
+          <button type="button" class="primary" id="draft-copy">복사</button>
+        </div>
+      </div>
     </section>
   </div>
   <div id="toast" class="toast" role="status"></div>
@@ -284,7 +308,11 @@
       const btn = el("button", { type: "button", className: "small", textContent: "복사" });
       btn.setAttribute("aria-label", `${i + 1}번 문구 복사`);
       btn.addEventListener("click", () => copy(p));
-      return el("div", { className: "result" }, el("span", { className: "no", textContent: String(i + 1) }), el("p", { textContent: p }), btn);
+      const edit = el("button", { type: "button", className: "small", textContent: "고쳐 쓰기" });
+      edit.setAttribute("aria-label", `${i + 1}번 문구를 직접 쓰기 칸으로 가져와 고치기`);
+      edit.addEventListener("click", () => takeToEditor(p));
+      return el("div", { className: "result" }, el("span", { className: "no", textContent: String(i + 1) }), el("p", { textContent: p }),
+        el("div", { className: "result-actions" }, edit, btn));
     });
     $("result").replaceChildren(
       el("div", { className: "result-head" }, el("h2", { textContent: "홍보 문구 3개" }), el("span", { className: "note", textContent: `${menu} · ${mood}` })),
@@ -317,6 +345,48 @@
     btn.disabled = false;
     btn.textContent = "문구 만들기";
   });
+
+  /* 직접 쓰기: 쓰던 글은 이 브라우저에 임시로 남겨 두어, 다른 화면에 다녀와도 이어서 쓸 수 있다 */
+  const DRAFT_KEY = "cafe-promo-draft";
+  const draft = $("f-draft");
+
+  function readDraft() {
+    try { return localStorage.getItem(DRAFT_KEY) || ""; } catch { return ""; }
+  }
+  function writeDraft(value) {
+    try { value ? localStorage.setItem(DRAFT_KEY, value) : localStorage.removeItem(DRAFT_KEY); } catch { /* 저장이 막힌 환경에서는 그냥 넘어간다 */ }
+  }
+  function updateCount() {
+    $("draft-count").textContent = `${draft.value.length} / ${draft.maxLength}`;
+  }
+
+  // AI 문구를 직접 쓰기 칸으로 가져온다. 쓰던 글이 있으면 덮어쓰기 전에 확인한다
+  function takeToEditor(value) {
+    if (draft.value.trim() && draft.value !== value && !confirm("직접 쓰던 글이 있습니다. 이 문구로 바꿀까요?")) return;
+    draft.value = value.slice(0, draft.maxLength);
+    writeDraft(draft.value);
+    updateCount();
+    draft.scrollIntoView({ behavior: "smooth", block: "center" });
+    draft.focus();
+    toast("직접 쓰기 칸으로 가져왔습니다. 고쳐서 쓰세요.");
+  }
+
+  draft.addEventListener("input", () => { writeDraft(draft.value); updateCount(); });
+  $("draft-copy").addEventListener("click", () => {
+    if (!draft.value.trim()) return toast("복사할 글이 없습니다. 먼저 홍보 문구를 써 주세요.", true);
+    copy(draft.value);
+  });
+  $("draft-clear").addEventListener("click", () => {
+    if (!draft.value) return;
+    if (!confirm("쓰던 글을 모두 지울까요?")) return;
+    draft.value = "";
+    writeDraft("");
+    updateCount();
+    draft.focus();
+  });
+
+  draft.value = readDraft();
+  updateCount();
 
   loadMenus();
 </script>
