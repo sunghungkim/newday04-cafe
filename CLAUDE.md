@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 실행
 
 - 이 PC에는 Python과 Node가 없다. 로컬 서버는 `powershell -File serve.ps1`(기본 포트 8000, PowerShell 전용)이고, `.claude/launch.json`의 `cafe` 설정으로도 띄운다. 다른 세션이 이미 8000번을 쓰고 있으면 `preview_start`가 실패하니, 그 서버가 같은 폴더를 서빙하는지 보고 그대로 쓴다.
-- `index.html`을 열면 로그인 화면이 먼저 나온다. 시험할 때는 직원 입장(이름만 입력)이나 관리자 로그인을 쓰면 되고, 다른 페이지 주소를 직접 열면 로그인 화면으로 돌려보낸다.
+- `index.html`을 열면 로그인 화면이 먼저 나온다. 시험할 때는 직원 로그인(이름만 입력)이나 관리자 로그인을 쓰면 되고, 다른 페이지 주소를 직접 열면 로그인 화면으로 돌려보낸다.
 
 ## 구조
 
@@ -29,9 +29,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 데이터 (Supabase 프로젝트 `day04-cafe`)
 
 - 브라우저는 REST로 직접 읽고 쓴다. 주소와 공개용(publishable) 키는 각 페이지에 상수로 들어 있고, 비밀 키는 어디에도 두지 않는다.
-- 테이블: `menus`(이름, 분류, 가격, 재고), `sales`(menu_id, menu_name, quantity, amount, sold_at), `reviews`(rating 1~5, content, sentiment, reply, written_at). `reviews.sentiment`는 `좋음`/`보통`/`아쉬움`만 허용한다(CHECK).
+- 테이블: `menus`(이름, 분류, 가격, 재고), `sales`(menu_id, menu_name, quantity, amount, sold_at), `reviews`(rating 1~5, content, sentiment, reply, written_at), `orders`(재고 발주: menu_id, menu_name, quantity, status `발주`/`입고`/`취소`, ordered_by, ordered_at, received_at). `reviews.sentiment`는 `좋음`/`보통`/`아쉬움`만 허용한다(CHECK).
 - 로그인 없이 쓰도록 anon에 전체 권한과 RLS 정책(`using (true)`)을 줬다. 의도된 설계다.
 - 판매 입력은 DB 함수 `record_sale(p_menu_id, p_quantity)`(RPC)가 판매 기록과 재고 차감을 한 번에 처리하고 판매 행을 돌려준다. 재고가 모자라면 `out_of_stock` 오류.
+- 발주 입고는 `receive_order(p_order_id)`(RPC)가 발주 상태를 `입고`로 바꾸고 그 메뉴 재고를 수량만큼 늘리는 일을 한 번에 한다. 오류: `already_processed`(이미 입고·취소), `order_not_found`, `menu_not_found`(메뉴가 지워짐, 이때 상태 변경도 되돌아간다). 취소는 `status=eq.발주` 조건을 단 PATCH다.
 - **테이블 정의와 `record_sale`은 이 저장소에 파일로 없다.** Supabase에만 있으니 바꾸면 Supabase 커넥터(`apply_migration`)로 하고, 필요하면 `supabase/migrations/`에 SQL을 남긴다.
 - 지금 들어 있는 데이터는 대부분 시험용 가짜 데이터다(메뉴 19개, 판매 400여 건, 리뷰 40건).
 
@@ -46,7 +47,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - 직원은 이름만 넣고 입장하고, 관리자는 아이디·비밀번호를 확인한다. 비밀번호는 코드에 해시(SHA-256 "아이디:비밀번호")로만 있고, 이 문서나 다른 곳에 값을 적지 않는다. 5번 실패하면 30초 잠긴다.
 - 로그인 상태는 `sessionStorage`의 `cafe-session`(`{role, name}`)이다. 각 페이지 `<head>`의 짧은 스크립트가 로그인 없이 열린 페이지를 `index.html`로 보낸다.
-- 권한: 직원은 `menu.html`에서 재고만 고칠 수 있고, 메뉴 추가·삭제·가격 수정은 관리자만 한다. 이것도 화면에서만 막는 것이라, 코드를 보거나 DB를 직접 호출하면 우회된다. 진짜로 막으려면 Supabase Auth와 RLS가 필요하다.
+- 권한: 직원은 `menu.html`에서 재고만 고칠 수 있고, 메뉴 추가·삭제·가격 수정은 관리자만 한다. 재고 발주와 입고 처리·취소는 직원과 관리자 모두 할 수 있다(`menu.html`의 "재고 발주", "발주 내역"). 발주한 사람은 `orders.ordered_by`에 "이름 (직원)" 또는 "관리자"로 남고, 로그인 이름이 없으면 발주가 막힌다. 이것도 화면에서만 막는 것이라, 코드를 보거나 DB를 직접 호출하면 우회된다. 진짜로 막으려면 Supabase Auth와 RLS가 필요하다.
 
 ## 도구
 

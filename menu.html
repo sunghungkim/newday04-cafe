@@ -83,7 +83,7 @@
 
   /* 입력 */
   label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 22px; color: var(--text-normal); font-weight: 500; }
-  input {
+  input, select {
     font: inherit;
     height: 40px;
     padding: 0 12px;
@@ -94,10 +94,12 @@
     width: 100%;
     min-width: 0;
   }
-  input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+  input:focus-visible, select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
   input[type=number] { text-align: right; }
 
   .add-form { display: grid; grid-template-columns: 2fr 1.4fr 1fr 1fr auto; gap: 12px; align-items: end; }
+  .order-form { display: grid; grid-template-columns: 3fr 1fr auto; gap: 12px; align-items: end; }
+  .order-hint { margin: 12px 0 0; font-size: 14px; line-height: 22px; color: var(--text-hint); }
 
   button {
     font: inherit;
@@ -122,7 +124,8 @@
   .list-head h2 { margin: 0; }
   .count { font-size: 14px; line-height: 22px; color: var(--text-hint); }
   .table-scroll { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; min-width: 720px; }
+  table { width: 100%; border-collapse: collapse; min-width: 800px; }
+  table.orders-table { min-width: 640px; }
   th {
     text-align: left;
     font-size: 14px; line-height: 22px; font-weight: 500;
@@ -158,6 +161,17 @@
     vertical-align: 1px;
   }
 
+  /* 발주 상태 */
+  .status {
+    display: inline-block; padding: 0 8px; border-radius: 4px; border: 1px solid;
+    font-size: 12px; line-height: 18px; font-weight: 700;
+  }
+  .status.wait { color: var(--warning); border-color: var(--warning); background: var(--canvas); }
+  .status.done { color: var(--success); border-color: var(--success); background: var(--success-soft); }
+  .status.cancel { color: var(--text-hint); border-color: var(--border); background: var(--canvas-200); }
+  td.when { color: var(--text-hint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.orderer { font-weight: 500; white-space: nowrap; }
+
   .empty, .error { padding: 32px 0; text-align: center; color: var(--text-hint); }
   .error { color: var(--danger-fg); }
   .error button { margin-top: 12px; }
@@ -180,6 +194,8 @@
     .card { padding: 16px; }
     .add-form { grid-template-columns: 1fr 1fr; }
     .add-form button { grid-column: 1 / -1; }
+    .order-form { grid-template-columns: 1fr 1fr; }
+    .order-form label:first-child, .order-form button { grid-column: 1 / -1; }
   }
 </style>
 </head>
@@ -202,12 +218,33 @@
       </form>
     </section>
 
+    <section class="card" id="order-card" aria-labelledby="order-title">
+      <h2 id="order-title">재고 발주</h2>
+      <form id="order-form" class="order-form">
+        <label>메뉴
+          <select id="f-order-menu" required><option value="">불러오는 중...</option></select>
+        </label>
+        <label>발주 수량(개)<input id="f-order-qty" type="number" min="1" max="9999" step="1" required inputmode="numeric"></label>
+        <button type="submit" class="primary" id="order-btn">발주</button>
+      </form>
+      <p class="order-hint" id="order-who"></p>
+      <p class="order-hint">발주하면 아래 발주 내역에 "발주" 상태로 남습니다. 물건이 도착하면 "입고 처리"를 눌러 재고에 더합니다. 직원과 관리자 모두 발주할 수 있습니다.</p>
+    </section>
+
     <section class="card" aria-labelledby="list-title">
       <div class="list-head">
         <h2 id="list-title">메뉴 목록</h2>
         <span class="count" id="count"></span>
       </div>
       <div id="list-body"><div class="empty">불러오는 중입니다.</div></div>
+    </section>
+
+    <section class="card" aria-labelledby="orders-title">
+      <div class="list-head">
+        <h2 id="orders-title">발주 내역</h2>
+        <span class="count" id="orders-count"></span>
+      </div>
+      <div id="order-body"><div class="empty">불러오는 중입니다.</div></div>
     </section>
   </div>
   <div id="toast" class="toast" role="status"></div>
@@ -219,6 +256,12 @@
 
   const $ = id => document.getElementById(id);
   let menus = [];
+  let orders = []; // 최근 발주 내역
+
+  // 발주한 사람 (로그인한 이름). 직원과 관리자 모두 발주할 수 있고, "홍길동 (직원)", "관리자"처럼 기록된다.
+  const WHO = (() => {
+    try { return String(JSON.parse(sessionStorage.getItem("cafe-session")).name || "").trim().slice(0, 20); } catch { return ""; }
+  })();
 
   // 로그인한 사람의 권한. 직원은 재고만 고칠 수 있고, 메뉴 추가·삭제와 가격 수정은 관리자만 한다.
   // (화면에서 막는 것일 뿐이며, 서버가 막아 주는 것은 아니다)
@@ -226,12 +269,14 @@
     try { return JSON.parse(sessionStorage.getItem("cafe-session")).role === "admin"; } catch { return false; }
   })();
   if (!IS_ADMIN) $("add-card").hidden = true;
+  const ORDERER = WHO ? (IS_ADMIN ? WHO : `${WHO} (직원)`) : ""; // 발주 내역에 남는 이름
   $("menu-sub").textContent = IS_ADMIN
     ? `메뉴를 추가하고 가격과 재고를 고칩니다. 재고가 ${LOW_STOCK}개 이하이면 빨간색으로 표시됩니다.`
     : `직원은 재고만 고칠 수 있습니다. 메뉴 추가·삭제와 가격 수정은 관리자만 할 수 있습니다. 재고가 ${LOW_STOCK}개 이하이면 빨간색으로 표시됩니다.`;
 
-  async function api(query, options = {}) {
-    const res = await netFetch(`${SUPABASE_URL}/rest/v1/menus${query}`, {
+  // Supabase REST 호출. path 예: "menus?select=*", "orders", "rpc/receive_order"
+  async function rest(path, options = {}) {
+    const res = await netFetch(`${SUPABASE_URL}/rest/v1/${path}`, {
       ...options,
       headers: {
         apikey: SUPABASE_KEY,
@@ -246,6 +291,11 @@
       throw err;
     }
     return res.json();
+  }
+
+  // 메뉴 테이블 호출
+  function api(query, options) {
+    return rest(`menus${query}`, options);
   }
 
   // 인터넷 자체가 끊긴 경우에만 network 표시를 달아, 화면 코드에서 난 오류와 구분한다
@@ -302,6 +352,14 @@
       priceIn.readOnly = true; // 직원은 가격을 고칠 수 없고 삭제 버튼도 보이지 않는다
       delBtn.hidden = true;
     }
+    // 이 메뉴를 발주하러 가는 바로가기: 위의 발주 칸에 메뉴를 골라 놓고 수량 칸으로 옮겨 간다
+    const orderBtn = el("button", { type: "button", textContent: "발주" });
+    orderBtn.setAttribute("aria-label", `${m.name} 발주하기`);
+    orderBtn.addEventListener("click", () => {
+      $("f-order-menu").value = String(m.id);
+      $("order-card").scrollIntoView({ behavior: "smooth", block: "center" });
+      $("f-order-qty").focus();
+    });
     const badge = el("span", { className: "badge", textContent: "재고 부족" });
     const nameCell = el("td", { className: "name" }, m.name);
     const tr = el("tr", {},
@@ -309,7 +367,7 @@
       el("td", { className: "cat", textContent: m.category }),
       el("td", { className: "num" }, priceIn),
       el("td", { className: "num stock-cell" }, stockIn),
-      el("td", { className: "act" }, saveBtn, delBtn),
+      el("td", { className: "act" }, orderBtn, saveBtn, delBtn),
     );
 
     const parse = input => (input.value.trim() === "" ? NaN : Number(input.value));
@@ -374,6 +432,7 @@
 
   function render() {
     renderCategories();
+    renderOrderMenus();
     const body = $("list-body");
     $("count").textContent = `${menus.length}개`;
     if (!menus.length) {
@@ -398,6 +457,7 @@
     } catch (e) {
       const retry = el("button", { type: "button", textContent: "다시 불러오기" });
       retry.addEventListener("click", load);
+      $("f-order-menu").replaceChildren(el("option", { value: "", textContent: "메뉴를 불러오지 못했습니다" }));
       $("list-body").replaceChildren(el("div", { className: "error" }, friendly(e, "메뉴 목록을 불러오"), el("br"), retry));
     }
   }
@@ -422,7 +482,131 @@
     $("add-btn").disabled = false;
   });
 
+  /* ===== 재고 발주 ===== */
+  // 발주하기 전에 어떤 이름으로 기록되는지 보여 준다
+  $("order-who").textContent = ORDERER
+    ? `발주자: ${ORDERER} — 로그인한 이름으로 발주 내역에 기록됩니다.`
+    : "로그인한 이름을 찾을 수 없습니다. 로그아웃한 뒤 다시 로그인해 주세요.";
+  if (!ORDERER) $("order-btn").disabled = true;
+  const ORDER_STATUS = { "발주": "wait", "입고": "done", "취소": "cancel" };
+  const whenText = iso => new Date(iso).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+  // 발주 메뉴 선택칸: 재고가 적은 메뉴가 눈에 띄게 재고를 같이 보여 준다
+  function renderOrderMenus() {
+    const sel = $("f-order-menu");
+    const keep = sel.value;
+    sel.replaceChildren(
+      el("option", { value: "", textContent: menus.length ? "메뉴를 선택하세요" : "등록된 메뉴가 없습니다" }),
+      ...menus.map(m => el("option", { value: m.id, textContent: `${m.name} · 재고 ${m.stock}개${isLow(m.stock) ? " (부족)" : ""}` })),
+    );
+    if (keep && menus.some(m => String(m.id) === keep)) sel.value = keep;
+  }
+
+  function renderOrders() {
+    const pending = orders.filter(o => o.status === "발주").length;
+    $("orders-count").textContent = pending ? `입고를 기다리는 발주 ${pending}건` : "";
+    const body = $("order-body");
+    if (!orders.length) {
+      body.replaceChildren(el("div", { className: "empty", textContent: "아직 발주한 내역이 없습니다." }));
+      return;
+    }
+    const head = el("tr", {},
+      el("th", { textContent: "발주 시각" }),
+      el("th", { textContent: "메뉴" }),
+      el("th", { className: "num", textContent: "수량" }),
+      el("th", { textContent: "발주한 사람" }),
+      el("th", { textContent: "상태" }),
+      el("th"),
+    );
+    const rows = orders.map(o => {
+      const act = el("td", { className: "act" });
+      if (o.status === "발주") {
+        const receive = el("button", { type: "button", className: "primary", textContent: "입고 처리" });
+        receive.setAttribute("aria-label", `${o.menu_name} ${o.quantity}개 입고 처리`);
+        receive.addEventListener("click", () => receiveOrder(o, receive));
+        const cancel = el("button", { type: "button", className: "danger", textContent: "취소" });
+        cancel.setAttribute("aria-label", `${o.menu_name} 발주 취소`);
+        cancel.addEventListener("click", () => cancelOrder(o, cancel));
+        act.append(receive, cancel);
+      } else if (o.status === "입고" && o.received_at) {
+        act.append(el("span", { className: "when", textContent: `${whenText(o.received_at)} 입고` }));
+      }
+      return el("tr", {},
+        el("td", { className: "when", textContent: whenText(o.ordered_at) }),
+        el("td", { className: "name", textContent: o.menu_name }),
+        el("td", { className: "num", textContent: `${o.quantity}개` }),
+        el("td", { className: o.ordered_by ? "orderer" : "when", textContent: o.ordered_by || "기록 없음" }),
+        el("td", {}, el("span", { className: `status ${ORDER_STATUS[o.status] || "cancel"}`, textContent: o.status })),
+        act);
+    });
+    body.replaceChildren(el("div", { className: "table-scroll" },
+      el("table", { className: "orders-table" }, el("thead", {}, head), el("tbody", {}, ...rows))));
+  }
+
+  async function loadOrders() {
+    try {
+      orders = await rest("orders?select=*&order=ordered_at.desc,id.desc&limit=30", { headers: { Prefer: "" } });
+      renderOrders();
+    } catch (e) {
+      const retry = el("button", { type: "button", textContent: "다시 불러오기" });
+      retry.addEventListener("click", loadOrders);
+      $("order-body").replaceChildren(el("div", { className: "error" }, friendly(e, "발주 내역을 불러오"), el("br"), retry));
+    }
+  }
+
+  $("order-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const m = menus.find(x => String(x.id) === $("f-order-menu").value);
+    const qty = Number($("f-order-qty").value);
+    if (!ORDERER) return toast("로그인한 이름을 찾을 수 없어 발주할 수 없습니다. 다시 로그인해 주세요.", true);
+    if (!m) return toast("발주할 메뉴를 선택해 주세요.", true);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 9999) return toast("수량은 1개 이상 9999개 이하의 숫자로 넣어 주세요.", true);
+
+    $("order-btn").disabled = true;
+    try {
+      await rest("orders", { method: "POST", body: JSON.stringify({ menu_id: m.id, menu_name: m.name, quantity: qty, ordered_by: ORDERER }) });
+      $("f-order-qty").value = "";
+      toast(`${m.name} ${qty}개를 발주했습니다. (발주자: ${ORDERER})`);
+      await loadOrders();
+    } catch (err) {
+      toast(friendly(err, `${m.name} 발주를 하`), true);
+    }
+    $("order-btn").disabled = false;
+  });
+
+  // 입고 처리: 발주를 '입고'로 바꾸고 재고를 늘리는 일을 DB 함수가 한 번에 한다
+  async function receiveOrder(o, btn) {
+    if (!confirm(`'${o.menu_name}' ${o.quantity}개를 입고 처리할까요?\n재고가 ${o.quantity}개 늘어납니다.`)) return;
+    btn.disabled = true;
+    try {
+      await rest("rpc/receive_order", { method: "POST", body: JSON.stringify({ p_order_id: o.id }) });
+      toast(`${o.menu_name} ${o.quantity}개를 입고했습니다. 재고에 더했습니다.`);
+    } catch (e) {
+      const code = (/already_processed|order_not_found|menu_not_found/.exec(e.message) || [])[0];
+      toast({
+        already_processed: "이미 입고했거나 취소한 발주입니다. 목록을 새로 불러왔습니다.",
+        order_not_found: "발주 내역을 찾을 수 없습니다. 목록을 새로 불러왔습니다.",
+        menu_not_found: "이 메뉴가 지워져서 입고 처리를 할 수 없습니다. 발주를 취소해 주세요.",
+      }[code] || friendly(e, `${o.menu_name} 입고 처리를 하`), true);
+    }
+    await Promise.all([load(), loadOrders()]);
+  }
+
+  async function cancelOrder(o, btn) {
+    if (!confirm(`'${o.menu_name}' ${o.quantity}개 발주를 취소할까요?`)) return;
+    btn.disabled = true;
+    try {
+      // 아직 '발주' 상태일 때만 취소된다. 그 사이 입고된 발주는 건드리지 않는다
+      const rows = await rest(`orders?id=eq.${o.id}&status=eq.${encodeURIComponent("발주")}`, { method: "PATCH", body: JSON.stringify({ status: "취소" }) });
+      toast(rows.length ? `${o.menu_name} 발주를 취소했습니다.` : "이미 입고했거나 취소한 발주입니다. 목록을 새로 불러왔습니다.", !rows.length);
+    } catch (e) {
+      toast(friendly(e, `${o.menu_name} 발주를 취소하`), true);
+    }
+    await loadOrders();
+  }
+
   load();
+  loadOrders();
 </script>
 </body>
 </html>
