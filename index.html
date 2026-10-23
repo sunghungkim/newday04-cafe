@@ -225,9 +225,50 @@
   .home-error { text-align: center; padding: 48px 0; color: var(--danger-fg); }
   .home-error .btn { margin-top: 12px; }
 
+  /* 로그인 (로그인 전에는 메뉴와 화면을 숨기고 로그인 화면만 보인다) */
+  body[data-auth="out"] .sidebar, body[data-auth="out"] .stage { display: none; }
+  .login { display: none; flex: 1; align-items: center; justify-content: center; padding: 24px; }
+  body[data-auth="out"] .login { display: flex; }
+  .login-card {
+    width: 100%; max-width: 400px;
+    background: var(--canvas); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 32px 24px;
+  }
+  .login-card h1 { margin: 0; font-size: 24px; line-height: 36px; font-weight: 700; letter-spacing: -0.3px; text-align: center; }
+  .login-card .login-sub { margin: 0 0 24px; text-align: center; font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .login-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+  .login-tabs button {
+    flex: 1; font: inherit; font-weight: 500; height: 40px; cursor: pointer;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--canvas); color: var(--text-normal);
+  }
+  .login-tabs button:hover { background: var(--hover); }
+  .login-tabs button[aria-selected="true"] { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-fg); font-weight: 700; }
+  .login-tabs button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .login-form { display: flex; flex-direction: column; gap: 16px; }
+  .login-form[hidden] { display: none; }
+  .login-form label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 22px; color: var(--text-normal); font-weight: 500; }
+  .login-form input {
+    font: inherit; height: 40px; padding: 0 12px; width: 100%;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--canvas); color: var(--text);
+  }
+  .login-form input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+  .login-form .btn { width: 100%; }
+  .login-msg { margin: 0; min-height: 22px; font-size: 14px; line-height: 22px; color: var(--danger-fg); }
+  .login-note { margin: 16px 0 0; font-size: 13px; line-height: 20px; color: var(--text-hint); text-align: center; }
+
+  .userbox {
+    margin-top: auto; padding: 16px 12px 0; border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 22px; color: var(--text-hint);
+  }
+  .userbox strong { display: block; color: var(--text); font-weight: 700; overflow-wrap: anywhere; }
+
   /* 좁은 화면: 메뉴를 위로 */
   @media (max-width: 640px) {
     body { flex-direction: column; }
+    .userbox { margin-top: 0; margin-left: auto; padding: 0 0 0 12px; border-top: 0; flex-direction: row; align-items: center; white-space: nowrap; }
+    .userbox .who { display: none; }
     .sidebar { width: 100%; flex-direction: row; overflow-x: auto; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--border); }
     .brand { display: none; }
     .nav-btn { white-space: nowrap; }
@@ -243,7 +284,40 @@
   }
 </style>
 </head>
-<body>
+<body data-auth="out">
+  <section class="login" id="login" aria-labelledby="login-title">
+    <div class="login-card">
+      <h1 id="login-title">골목카페</h1>
+      <p class="login-sub">운영 대시보드에 로그인해 주세요.</p>
+
+      <div class="login-tabs" role="tablist" aria-label="로그인 방법">
+        <button type="button" role="tab" id="tab-staff" aria-selected="true" aria-controls="form-staff">직원 입장</button>
+        <button type="button" role="tab" id="tab-admin" aria-selected="false" aria-controls="form-admin">관리자 로그인</button>
+      </div>
+
+      <form class="login-form" id="form-staff" role="tabpanel" aria-labelledby="tab-staff">
+        <label>이름
+          <input id="staff-name" maxlength="20" autocomplete="off" placeholder="예: 홍길동" required>
+        </label>
+        <p class="login-msg" id="msg-staff" role="alert"></p>
+        <button type="submit" class="btn primary">입장</button>
+      </form>
+
+      <form class="login-form" id="form-admin" role="tabpanel" aria-labelledby="tab-admin" hidden>
+        <label>아이디
+          <input id="admin-id" autocomplete="off" required>
+        </label>
+        <label>비밀번호
+          <input id="admin-pw" type="password" autocomplete="off" required>
+        </label>
+        <p class="login-msg" id="msg-admin" role="alert"></p>
+        <button type="submit" class="btn primary">관리자 로그인</button>
+      </form>
+
+      <p class="login-note">직원은 메뉴를 볼 수 있고 재고만 고칠 수 있습니다. 메뉴 추가·삭제와 가격 수정은 관리자만 할 수 있습니다.</p>
+    </div>
+  </section>
+
   <nav class="sidebar" aria-label="메인 메뉴">
     <div class="brand">골목카페<small>운영 대시보드</small></div>
     <button class="nav-btn" data-page="home">홈</button>
@@ -252,6 +326,10 @@
     <button class="nav-btn" data-page="reviews">리뷰</button>
     <button class="nav-btn" data-page="promo">홍보</button>
     <button class="nav-btn" data-page="rivals">주변카페</button>
+    <div class="userbox">
+      <div class="who"><strong id="who-name"></strong><span id="who-role"></span></div>
+      <button type="button" class="btn" id="logout">로그아웃</button>
+    </div>
   </nav>
 
   <main class="stage">
@@ -575,7 +653,101 @@
   $("home-refresh").addEventListener("click", showHome);
 
   buttons.forEach(b => b.addEventListener("click", () => open(b.dataset.page)));
-  open(location.hash.slice(1) || "home");
+
+  /* ===== 로그인 =====
+     직원: 이름만 넣고 입장. 관리자: 아이디·비밀번호 확인.
+     이 앱은 서버 없이 HTML만으로 만든 것이라, 로그인은 화면을 막는 용도이지 실제 보안이 아니다.
+     (코드를 보거나 다른 화면 주소를 직접 열어도, DB 는 anon 키로 열려 있다.) */
+  const SESSION_KEY = "cafe-session";
+  // 관리자 "아이디:비밀번호" 의 SHA-256. 코드에 값이 그대로 적히지 않게만 한다.
+  const ADMIN_HASH = "4eca1a61232ab8bfbbc70acbf169721fc5ecb8bb5ace8b0ef200db819df41c59";
+  const MAX_FAILS = 5, LOCK_SECONDS = 30;
+  let session = null, fails = 0, lockedUntil = 0;
+
+  function readSession() {
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { return null; }
+  }
+  function saveSession(s) {
+    session = s;
+    try { s ? sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)) : sessionStorage.removeItem(SESSION_KEY); } catch { /* 저장이 막혀 있어도 이 화면에서는 로그인 상태를 유지한다 */ }
+  }
+
+  async function sha256(text) {
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function selectTab(kind) {
+    const admin = kind === "admin";
+    $("tab-staff").setAttribute("aria-selected", String(!admin));
+    $("tab-admin").setAttribute("aria-selected", String(admin));
+    $("form-staff").hidden = admin;
+    $("form-admin").hidden = !admin;
+    $(admin ? "admin-id" : "staff-name").focus();
+  }
+
+  function enter(s) {
+    saveSession(s);
+    $("who-name").textContent = s.name;
+    $("who-role").textContent = s.role === "admin" ? "전체 권한" : "직원 (재고만 수정)";
+    document.body.dataset.auth = "in";
+    open(location.hash.slice(1) || "home");
+  }
+
+  function leave() {
+    saveSession(null);
+    token += 1;          // 진행 중이던 화면 전환을 무효로 한다
+    homeToken += 1;
+    homeEl.classList.remove("show");
+    coming.classList.remove("show");
+    frame.removeAttribute("src");
+    document.body.dataset.auth = "out";
+    history.replaceState(null, "", location.pathname);
+    ["staff-name", "admin-id", "admin-pw"].forEach(id => { $(id).value = ""; });
+    ["msg-staff", "msg-admin"].forEach(id => { $(id).textContent = ""; });
+    selectTab("staff");
+  }
+
+  $("tab-staff").addEventListener("click", () => selectTab("staff"));
+  $("tab-admin").addEventListener("click", () => selectTab("admin"));
+  $("logout").addEventListener("click", leave);
+
+  $("form-staff").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = $("staff-name").value.trim();
+    if (!name) return ($("msg-staff").textContent = "이름을 입력해 주세요.");
+    enter({ role: "staff", name });
+  });
+
+  $("form-admin").addEventListener("submit", async e => {
+    e.preventDefault();
+    const msg = $("msg-admin");
+    const wait = Math.ceil((lockedUntil - Date.now()) / 1000);
+    if (wait > 0) return (msg.textContent = `로그인에 여러 번 실패했습니다. ${wait}초 뒤에 다시 시도해 주세요.`);
+    if (!(window.crypto && crypto.subtle)) return (msg.textContent = "이 주소에서는 관리자 로그인을 쓸 수 없습니다. localhost 또는 https 주소로 열어 주세요.");
+
+    const ok = (await sha256(`${$("admin-id").value.trim()}:${$("admin-pw").value}`)) === ADMIN_HASH;
+    if (ok) {
+      fails = 0;
+      msg.textContent = "";
+      return enter({ role: "admin", name: "관리자" });
+    }
+    $("admin-pw").value = "";
+    fails += 1;
+    if (fails >= MAX_FAILS) {
+      fails = 0;
+      lockedUntil = Date.now() + LOCK_SECONDS * 1000;
+      msg.textContent = `로그인에 ${MAX_FAILS}번 실패했습니다. ${LOCK_SECONDS}초 뒤에 다시 시도해 주세요.`;
+    } else {
+      msg.textContent = "아이디나 비밀번호가 맞지 않습니다.";
+    }
+    $("admin-pw").focus();
+  });
+
+  // 이미 로그인한 탭이면(새로고침) 바로 들어가고, 아니면 로그인 화면을 보여 준다
+  const saved = readSession();
+  if (saved && (saved.role === "admin" || saved.role === "staff") && saved.name) enter(saved);
+  else $("staff-name").focus();
 </script>
 </body>
 </html>
