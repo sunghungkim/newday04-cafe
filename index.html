@@ -21,6 +21,9 @@
     --success: #058765;
     --warning: #D34701;
     --danger: #DA3944;
+    --danger-fg: #BB1225;
+    --danger-soft: #FFF5F4;
+    --bar-muted: #8DCDFF;       /* 그래프에서 강조하지 않는 막대 */
     --radius: 8px;
     --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
     --font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
@@ -39,7 +42,10 @@
       --primary-soft: #001286;
       --success: #46B993;
       --warning: #F58A56;
-      --danger: #FD8283;
+      --danger: #F14F5A;
+      --danger-fg: #FD8283;
+      --danger-soft: #590000;
+      --bar-muted: #0E5ACB;
     }
   }
 
@@ -127,12 +133,90 @@
   }
   .coming-card span { font-size: 14px; line-height: 22px; color: var(--text-normal); }
 
+  /* 홈 (숫자 카드 + 7일 매출 그래프) */
+  .home {
+    position: absolute;
+    inset: 0;
+    display: none;
+    overflow: auto;
+    padding: 32px;
+  }
+  .home.show { display: block; }
+  .home-inner { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+  .home-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .home-head h1 { margin: 0; font-size: 24px; line-height: 36px; font-weight: 700; letter-spacing: -0.3px; }
+  .home-head p { margin: 0; font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .btn {
+    font: inherit; font-weight: 500; height: 40px; padding: 0 20px;
+    border-radius: var(--radius); border: 1px solid var(--border);
+    background: var(--canvas); color: var(--text-normal); cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover:not(:disabled) { background: var(--hover); }
+  .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  #home-body { display: flex; flex-direction: column; gap: 24px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .card {
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 20px;
+  }
+  .kpi .label { font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .kpi .value { font-size: 32px; line-height: 48px; font-weight: 700; letter-spacing: -0.4px; margin: 2px 0; overflow-wrap: anywhere; }
+  .kpi .value small { font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0; color: var(--text-hint); margin-left: 2px; }
+  .kpi .note { font-size: 14px; line-height: 22px; color: var(--text-hint); min-height: 22px; }
+  .kpi.alert .value, .kpi.alert .note { color: var(--danger-fg); }
+
+  .chart-card h2 { margin: 0; font-size: 18px; line-height: 26px; font-weight: 700; letter-spacing: -0.1px; }
+  .chart-card .sub { margin: 0 0 20px; font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .chart { margin-left: 48px; }
+  .plot { position: relative; height: 220px; }
+  .grid-line { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--border); opacity: .6; }
+  .grid-line.base { opacity: 1; }
+  .tick { position: absolute; right: calc(100% + 8px); transform: translateY(50%); font-size: 12px; line-height: 18px; color: var(--text-hint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cols { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(7, 1fr); }
+  .col { position: relative; display: flex; align-items: flex-end; justify-content: center; outline: none; }
+  .bar { width: 24px; max-width: 60%; background: var(--bar-muted); border-radius: 4px 4px 0 0; min-height: 2px; }
+  .col.today .bar { background: var(--primary); }
+  .col:hover .bar, .col:focus-visible .bar { background: var(--primary-fg); }
+  .col:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); border-radius: 4px; }
+  .bar-label { position: absolute; left: 50%; transform: translateX(-50%); font-size: 12px; line-height: 18px; color: var(--text-normal); white-space: nowrap; padding-bottom: 4px; font-variant-numeric: tabular-nums; }
+  .col.today .bar-label { font-weight: 700; color: var(--text); }
+  .xlabels { display: grid; grid-template-columns: repeat(7, 1fr); margin-top: 8px; }
+  .xlabel { text-align: center; font-size: 12px; line-height: 18px; color: var(--text-hint); }
+  .xlabel.today { font-weight: 700; color: var(--text); }
+  .tip {
+    position: absolute; z-index: 2; pointer-events: none; display: none;
+    padding: 8px 12px; border-radius: var(--radius);
+    background: var(--text); color: var(--canvas);
+    font-size: 13px; line-height: 20px; white-space: nowrap; box-shadow: var(--shadow-sm);
+  }
+  .tip.show { display: block; }
+  details.data-table { margin-top: 20px; font-size: 14px; }
+  details.data-table summary { cursor: pointer; color: var(--text-hint); }
+  details.data-table table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  details.data-table th, details.data-table td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--border); text-align: right; font-variant-numeric: tabular-nums; }
+  details.data-table th:first-child, details.data-table td:first-child { text-align: left; }
+  details.data-table th { font-weight: 500; color: var(--text-hint); }
+  .home-error { text-align: center; padding: 48px 0; color: var(--danger-fg); }
+  .home-error .btn { margin-top: 12px; }
+
   /* 좁은 화면: 메뉴를 위로 */
   @media (max-width: 640px) {
     body { flex-direction: column; }
     .sidebar { width: 100%; flex-direction: row; overflow-x: auto; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--border); }
     .brand { display: none; }
     .nav-btn { white-space: nowrap; }
+    .home { padding: 16px; }
+    .kpis { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .kpi .value { font-size: 24px; line-height: 36px; }
+    .chart { margin-left: 40px; }
+  }
+  @media (max-width: 900px) {
+    .kpis { grid-template-columns: repeat(2, 1fr); }
   }
 </style>
 </head>
@@ -147,6 +231,18 @@
   </nav>
 
   <main class="stage">
+    <section id="home" class="home" aria-label="홈">
+      <div class="home-inner">
+        <div class="home-head">
+          <div>
+            <h1>오늘 장사</h1>
+            <p id="home-date"></p>
+          </div>
+          <button type="button" class="btn" id="home-refresh">새로고침</button>
+        </div>
+        <div id="home-body"><div class="home-error" style="color:var(--text-hint)">불러오는 중입니다.</div></div>
+      </div>
+    </section>
     <iframe id="frame" title="내용 화면"></iframe>
     <div id="coming" class="coming" role="status">
       <div class="coming-card">
@@ -158,7 +254,7 @@
   </main>
 
 <script>
-  // 메뉴 → 가운데에 열 파일. 홈은 아직 별도 화면이 없어 null(준비중).
+  // 메뉴 → 가운데에 열 파일. 홈은 이 파일 안의 화면(file 없음)이다.
   const PAGES = {
     home:    { label: "홈",  file: null },
     sales:   { label: "매출", file: "sales.html" },
@@ -168,12 +264,14 @@
   };
 
   const frame = document.getElementById("frame");
+  const homeEl = document.getElementById("home");
   const coming = document.getElementById("coming");
   const comingName = document.getElementById("coming-name");
   const buttons = document.querySelectorAll(".nav-btn");
   let token = 0; // 빠르게 연속 클릭해도 마지막 선택만 반영
 
   function showComing(label) {
+    homeEl.classList.remove("show");
     frame.removeAttribute("src");
     frame.style.visibility = "hidden";
     comingName.textContent = label + " 화면은 곧 준비됩니다.";
@@ -181,6 +279,7 @@
   }
 
   function showFrame(file) {
+    homeEl.classList.remove("show");
     coming.classList.remove("show");
     frame.style.visibility = "visible";
     frame.src = file;
@@ -194,6 +293,7 @@
     buttons.forEach(b => b.classList.toggle("active", b.dataset.page === key));
     history.replaceState(null, "", "#" + key);
 
+    if (key === "home") return showHome();
     if (!file) return showComing(label);
 
     // 파일이 있는지 먼저 확인 (없으면 준비중). file:// 로 열면 확인이 불가능해 그냥 연다.
@@ -206,6 +306,167 @@
       location.protocol === "file:" ? showFrame(file) : showComing(label);
     }
   }
+
+  /* ===== 홈: Supabase 숫자 카드 + 최근 7일 매출 그래프 (날짜는 모두 한국 시간 기준) ===== */
+  const SUPABASE_URL = "https://hiuffyznumdigdxocgnx.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_V-q98Dnfc78o0StvpnpAbg_BBm1kRG8"; // 공개용(publishable) 키
+  const LOW_STOCK = 5; // 이 값 이하이면 재고 부족
+  const WEEKDAYS = "일월화수목금토";
+  const kstFormat = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" });
+  const won = n => Number(n).toLocaleString("ko-KR") + "원";
+  const $ = id => document.getElementById(id);
+  let homeToken = 0;
+
+  async function api(path) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { apikey: SUPABASE_KEY } });
+    if (!res.ok) throw new Error(await res.text() || res.statusText);
+    return res.json();
+  }
+
+  function el(tag, props = {}, ...children) {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  }
+
+  // 한국 시간 기준 날짜 문자열 "YYYY-MM-DD"
+  function kstDate(date) {
+    const p = Object.fromEntries(kstFormat.formatToParts(date).map(x => [x.type, x.value]));
+    return `${p.year}-${p.month}-${p.day}`;
+  }
+
+  // 오늘을 포함한 최근 7일 (오래된 날 → 오늘)
+  function lastSevenDays() {
+    const [y, m, d] = kstDate(new Date()).split("-").map(Number);
+    return Array.from({ length: 7 }, (_, i) => {
+      const dt = new Date(Date.UTC(y, m - 1, d - (6 - i)));
+      return { key: dt.toISOString().slice(0, 10), month: dt.getUTCMonth() + 1, day: dt.getUTCDate(), weekday: WEEKDAYS[dt.getUTCDay()], amount: 0, count: 0 };
+    });
+  }
+
+  function kpi(label, value, unit, note, alert) {
+    const v = el("div", { className: "value" }, value);
+    if (unit) v.append(el("small", { textContent: unit }));
+    return el("div", { className: "card kpi" + (alert ? " alert" : "") },
+      el("div", { className: "label", textContent: label }), v, el("div", { className: "note", textContent: note }));
+  }
+
+  function compact(v) {
+    return v >= 10000 ? `${+(v / 10000).toFixed(1)}만` : v.toLocaleString("ko-KR");
+  }
+
+  // 눈금: 0부터 깔끔한 간격으로 최대 5개
+  function scale(max) {
+    if (max <= 0) return { top: 10000, step: 10000 };
+    const rough = max / 4, pow = 10 ** Math.floor(Math.log10(rough));
+    const step = [1, 2, 2.5, 5, 10].map(f => f * pow).find(s => s >= rough);
+    return { top: step * Math.ceil(max / step), step };
+  }
+
+  function renderChart(days) {
+    const max = Math.max(...days.map(d => d.amount));
+    const { top, step } = scale(max);
+    const plot = el("div", { className: "plot" });
+    for (let v = 0; v <= top; v += step) {
+      plot.append(el("div", { className: "grid-line" + (v === 0 ? " base" : ""), style: `bottom:${(v / top) * 100}%` }),
+        el("div", { className: "tick", textContent: v === 0 ? "0" : compact(v), style: `bottom:${(v / top) * 100}%` }));
+    }
+    const tip = el("div", { className: "tip", role: "tooltip" });
+    const cols = el("div", { className: "cols" });
+    days.forEach((d, i) => {
+      const pct = (d.amount / top) * 100;
+      const isToday = i === days.length - 1;
+      const text = `${d.month}월 ${d.day}일(${d.weekday}) · ${won(d.amount)} · ${d.count}건`;
+      const col = el("div", { className: "col" + (isToday ? " today" : ""), tabIndex: 0 });
+      col.setAttribute("role", "img");
+      col.setAttribute("aria-label", text);
+      const bar = el("div", { className: "bar", style: `height:${pct}%` });
+      col.append(bar);
+      // 값 라벨은 오늘과 최고 매출일에만 붙인다
+      if (d.amount > 0 && (isToday || d.amount === max)) {
+        col.append(el("div", { className: "bar-label", textContent: d.amount.toLocaleString("ko-KR"), style: `bottom:${pct}%` }));
+      }
+      const show = () => {
+        tip.textContent = text;
+        tip.style.left = `${((i + 0.5) / days.length) * 100}%`;
+        tip.style.bottom = `calc(${pct}% + 28px)`;
+        tip.style.transform = `translateX(${i === 0 ? "-15%" : i === days.length - 1 ? "-85%" : "-50%"})`;
+        tip.classList.add("show");
+      };
+      const hide = () => tip.classList.remove("show");
+      col.addEventListener("mouseenter", show); col.addEventListener("focus", show);
+      col.addEventListener("mouseleave", hide); col.addEventListener("blur", hide);
+      cols.append(col);
+    });
+    plot.append(cols, tip);
+
+    const xlabels = el("div", { className: "xlabels" }, ...days.map((d, i) =>
+      el("div", { className: "xlabel" + (i === days.length - 1 ? " today" : "") },
+        i === days.length - 1 ? "오늘" : `${d.month}/${d.day}`, el("br"), d.weekday)));
+
+    const table = el("details", { className: "data-table" }, el("summary", { textContent: "표로 보기" }),
+      el("table", {},
+        el("thead", {}, el("tr", {}, el("th", { textContent: "날짜" }), el("th", { textContent: "매출" }), el("th", { textContent: "주문수" }))),
+        el("tbody", {}, ...days.map(d => el("tr", {},
+          el("td", { textContent: `${d.month}월 ${d.day}일(${d.weekday})` }),
+          el("td", { textContent: won(d.amount) }),
+          el("td", { textContent: `${d.count}건` }))))));
+
+    const total = days.reduce((s, d) => s + d.amount, 0);
+    return el("section", { className: "card chart-card" },
+      el("h2", { textContent: "최근 7일 매출" }),
+      el("p", { className: "sub", textContent: `7일 합계 ${won(total)}` }),
+      el("div", { className: "chart" }, plot, xlabels), table);
+  }
+
+  async function showHome() {
+    coming.classList.remove("show");
+    frame.removeAttribute("src");
+    frame.style.visibility = "hidden";
+    homeEl.classList.add("show");
+    const mine = ++homeToken;
+    const body = $("home-body"), refresh = $("home-refresh");
+
+    const today = kstDate(new Date());
+    $("home-date").textContent = `${today.replaceAll("-", ".")} (${WEEKDAYS[new Date(today + "T00:00:00Z").getUTCDay()]}) 기준 · 한국 시간`;
+    refresh.disabled = true;
+
+    try {
+      const days = lastSevenDays();
+      const since = new Date(`${days[0].key}T00:00:00+09:00`).toISOString();
+      const [sales, reviews, menus] = await Promise.all([
+        api(`sales?select=amount,sold_at&sold_at=gte.${encodeURIComponent(since)}`),
+        api("reviews?select=rating"),
+        api("menus?select=name,stock&order=stock.asc"),
+      ]);
+      if (mine !== homeToken) return;
+
+      const byDay = Object.fromEntries(days.map(d => [d.key, d]));
+      sales.forEach(s => {
+        const d = byDay[kstDate(new Date(s.sold_at))];
+        if (d) { d.amount += s.amount; d.count += 1; }
+      });
+      const todayRow = days[6], yesterday = days[5];
+      const avg = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : null;
+      const low = menus.filter(m => m.stock <= LOW_STOCK);
+
+      body.replaceChildren(
+        el("div", { className: "kpis" },
+          kpi("오늘 매출", won(todayRow.amount).replace("원", ""), "원", `어제 ${won(yesterday.amount)}`),
+          kpi("오늘 주문수", String(todayRow.count), "건", `어제 ${yesterday.count}건`),
+          kpi("평균 별점", avg === null ? "-" : avg.toFixed(1), avg === null ? "" : "/ 5", avg === null ? "리뷰가 없습니다" : `리뷰 ${reviews.length}개`),
+          kpi("재고 부족 메뉴", String(low.length), "개", low.length ? low.map(m => m.name).join(", ") : `재고 ${LOW_STOCK}개 이하 없음`, low.length > 0)),
+        renderChart(days));
+    } catch (e) {
+      if (mine !== homeToken) return;
+      const retry = el("button", { type: "button", className: "btn", textContent: "다시 불러오기" });
+      retry.addEventListener("click", showHome);
+      body.replaceChildren(el("div", { className: "home-error" }, "데이터를 불러오지 못했습니다.", el("br"), retry));
+    }
+    if (mine === homeToken) refresh.disabled = false;
+  }
+
+  $("home-refresh").addEventListener("click", showHome);
 
   buttons.forEach(b => b.addEventListener("click", () => open(b.dataset.page)));
   open(location.hash.slice(1) || "home");
