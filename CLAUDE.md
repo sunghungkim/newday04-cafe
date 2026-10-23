@@ -28,5 +28,5 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Git
 
-- 원격 `origin`: https://github.com/sunghungkim/day04-cafe (로컬 브랜치는 `master`, 푸시 전에 원격 기본 브랜치 이름을 확인한다.)
+- 원격 `origin`: https://github.com/sunghungkim/newday04-cafe.git (로컬 브랜치는 `master`, 푸시 전에 원격 기본 브랜치 이름을 확인한다.)
 - 이 저장소의 git 사용자 설정은 로컬 설정으로 되어 있다.
