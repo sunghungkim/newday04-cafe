@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>메뉴 · 재고</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+<style>
+  /* 공통 디자인 값 (index.html의 :root 와 같은 값) */
+  :root {
+    --canvas: #FFFFFF;
+    --canvas-200: #F7F7F7;
+    --border: #C6C6C6;
+    --hover: #F7F7F7;
+    --text: #262626;
+    --text-normal: #4C4C4C;
+    --text-hint: #5D5D5D;
+    --primary: #2A72E5;
+    --primary-fg: #0957C8;
+    --primary-soft: #EFF8FF;
+    --success: #058765;
+    --warning: #D34701;
+    --danger: #DA3944;
+    --danger-fg: #BB1225;
+    --danger-soft: #FFF5F4;
+    --radius: 8px;
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
+    --font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --canvas: #232323;
+      --canvas-200: #282828;
+      --border: #474747;
+      --hover: #363636;
+      --text: #FAFAFA;
+      --text-normal: #BEBEBE;
+      --text-hint: #A7A7A7;
+      --primary: #368AED;
+      --primary-fg: #56ACF9;
+      --primary-soft: #001286;
+      --success: #46B993;
+      --warning: #F58A56;
+      --danger: #F14F5A;
+      --danger-fg: #FD8283;
+      --danger-soft: #590000;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px;
+    background: var(--canvas-200);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+  h1 { margin: 0; font-size: 24px; line-height: 36px; font-weight: 700; letter-spacing: -0.3px; }
+  .sub { margin: 0; font-size: 14px; line-height: 22px; color: var(--text-hint); }
+
+  .card {
+    background: var(--canvas);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    padding: 24px;
+  }
+  .card h2 { margin: 0 0 16px; font-size: 18px; line-height: 26px; font-weight: 700; letter-spacing: -0.1px; }
+
+  /* 입력 */
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 22px; color: var(--text-normal); font-weight: 500; }
+  input {
+    font: inherit;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--canvas);
+    color: var(--text);
+    width: 100%;
+    min-width: 0;
+  }
+  input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+  input[type=number] { text-align: right; }
+
+  .add-form { display: grid; grid-template-columns: 2fr 1.4fr 1fr 1fr auto; gap: 12px; align-items: end; }
+
+  button {
+    font: inherit;
+    font-weight: 500;
+    height: 40px;
+    padding: 0 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--canvas);
+    color: var(--text-normal);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  button.primary:hover:not(:disabled) { background: var(--primary-fg); border-color: var(--primary-fg); }
+
+  /* 목록 */
+  .list-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+  .list-head h2 { margin: 0; }
+  .count { font-size: 14px; line-height: 22px; color: var(--text-hint); }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  th {
+    text-align: left;
+    font-size: 14px; line-height: 22px; font-weight: 500;
+    color: var(--text-hint);
+    padding: 8px 8px 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  th.num, td.num { text-align: right; }
+  td { padding: 10px 8px 10px 0; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: 0; }
+  td.name { font-weight: 500; }
+  td.cat { color: var(--text-normal); }
+  td input { width: 110px; height: 36px; }
+  td.act { text-align: right; padding-right: 0; }
+  td.act button { height: 36px; padding: 0 16px; }
+
+  /* 재고 5개 이하: 빨간색 */
+  tr.low td.name, tr.low td.stock-cell input { color: var(--danger-fg); }
+  tr.low td.stock-cell input { border-color: var(--danger); background: var(--danger-soft); font-weight: 700; }
+  .badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 0 8px;
+    border-radius: 4px;
+    font-size: 12px; line-height: 18px; font-weight: 700;
+    color: var(--danger-fg);
+    background: var(--danger-soft);
+    border: 1px solid var(--danger);
+    vertical-align: 1px;
+  }
+
+  .empty, .error { padding: 32px 0; text-align: center; color: var(--text-hint); }
+  .error { color: var(--danger-fg); }
+  .error button { margin-top: 12px; }
+
+  /* 알림 */
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    padding: 12px 20px; border-radius: var(--radius);
+    background: var(--text); color: var(--canvas);
+    font-size: 14px; line-height: 22px;
+    box-shadow: var(--shadow-sm);
+    opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  .toast.show { opacity: 1; }
+  .toast.err { background: var(--danger-fg); color: #fff; }
+
+  @media (max-width: 720px) {
+    body { padding: 16px; }
+    .card { padding: 16px; }
+    .add-form { grid-template-columns: 1fr 1fr; }
+    .add-form button { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>메뉴 · 재고</h1>
+      <p class="sub">메뉴를 추가하고 가격과 재고를 고칩니다. 재고가 5개 이하이면 빨간색으로 표시됩니다.</p>
+    </header>
+
+    <section class="card" aria-labelledby="add-title">
+      <h2 id="add-title">메뉴 추가</h2>
+      <form id="add-form" class="add-form">
+        <label>이름<input id="f-name" required maxlength="40" autocomplete="off"></label>
+        <label>분류<input id="f-category" required maxlength="20" list="categories" autocomplete="off"></label>
+        <label>가격(원)<input id="f-price" type="number" min="0" step="1" required inputmode="numeric"></label>
+        <label>재고(개)<input id="f-stock" type="number" min="0" step="1" required inputmode="numeric" value="0"></label>
+        <button type="submit" class="primary" id="add-btn">추가</button>
+        <datalist id="categories"></datalist>
+      </form>
+    </section>
+
+    <section class="card" aria-labelledby="list-title">
+      <div class="list-head">
+        <h2 id="list-title">메뉴 목록</h2>
+        <span class="count" id="count"></span>
+      </div>
+      <div id="list-body"><div class="empty">불러오는 중입니다.</div></div>
+    </section>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+
+<script>
+  const SUPABASE_URL = "https://hiuffyznumdigdxocgnx.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_V-q98Dnfc78o0StvpnpAbg_BBm1kRG8"; // 공개용(publishable) 키
+  const LOW_STOCK = 5; // 이 값 이하이면 빨간색
+
+  const $ = id => document.getElementById(id);
+  let menus = [];
+
+  async function api(query, options = {}) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/menus${query}`, {
+      ...options,
+      headers: {
+        apikey: SUPABASE_KEY,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+        ...(options.headers || {}),
+      },
+    });
+    if (!res.ok) throw new Error(await res.text() || res.statusText);
+    return res.json();
+  }
+
+  let toastTimer;
+  function toast(msg, isError) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.toggle("err", !!isError);
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 2500);
+  }
+
+  const won = n => Number(n).toLocaleString("ko-KR");
+  const isLow = stock => stock <= LOW_STOCK;
+
+  function el(tag, props = {}, ...children) {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  }
+
+  function renderCategories() {
+    const list = $("categories");
+    list.replaceChildren(...[...new Set(menus.map(m => m.category))].map(c => el("option", { value: c })));
+  }
+
+  function renderRow(m) {
+    const priceIn = el("input", { type: "number", min: 0, step: 1, value: m.price, inputMode: "numeric" });
+    const stockIn = el("input", { type: "number", min: 0, step: 1, value: m.stock, inputMode: "numeric" });
+    priceIn.setAttribute("aria-label", `${m.name} 가격`);
+    stockIn.setAttribute("aria-label", `${m.name} 재고`);
+    const saveBtn = el("button", { type: "button", textContent: "저장", disabled: true });
+    const badge = el("span", { className: "badge", textContent: "재고 부족" });
+    const nameCell = el("td", { className: "name" }, m.name);
+    const tr = el("tr", {},
+      nameCell,
+      el("td", { className: "cat", textContent: m.category }),
+      el("td", { className: "num" }, priceIn),
+      el("td", { className: "num stock-cell" }, stockIn),
+      el("td", { className: "act" }, saveBtn),
+    );
+
+    const parse = input => (input.value.trim() === "" ? NaN : Number(input.value));
+    const valid = n => Number.isInteger(n) && n >= 0;
+
+    function refresh() {
+      const price = parse(priceIn), stock = parse(stockIn);
+      const low = valid(stock) && isLow(stock);
+      tr.classList.toggle("low", low);
+      if (low && !badge.isConnected) nameCell.append(badge);
+      if (!low) badge.remove();
+      saveBtn.disabled = !(valid(price) && valid(stock) && (price !== m.price || stock !== m.stock));
+      saveBtn.classList.toggle("primary", !saveBtn.disabled);
+    }
+
+    async function save() {
+      const price = parse(priceIn), stock = parse(stockIn);
+      if (!valid(price) || !valid(stock)) return;
+      saveBtn.disabled = true;
+      try {
+        const [row] = await api(`?id=eq.${m.id}`, { method: "PATCH", body: JSON.stringify({ price, stock }) });
+        m.price = row.price; m.stock = row.stock;
+        toast(`${m.name} 저장했습니다.`);
+      } catch (e) {
+        toast("저장하지 못했습니다. 다시 시도해 주세요.", true);
+      }
+      refresh();
+    }
+
+    [priceIn, stockIn].forEach(i => {
+      i.addEventListener("input", refresh);
+      i.addEventListener("keydown", e => { if (e.key === "Enter" && !saveBtn.disabled) save(); });
+    });
+    saveBtn.addEventListener("click", save);
+    refresh();
+    return tr;
+  }
+
+  function render() {
+    renderCategories();
+    const body = $("list-body");
+    $("count").textContent = `${menus.length}개`;
+    if (!menus.length) {
+      body.replaceChildren(el("div", { className: "empty", textContent: "등록된 메뉴가 없습니다. 위에서 메뉴를 추가해 주세요." }));
+      return;
+    }
+    const head = el("tr", {},
+      el("th", { textContent: "이름" }),
+      el("th", { textContent: "분류" }),
+      el("th", { className: "num", textContent: "가격(원)" }),
+      el("th", { className: "num", textContent: "재고(개)" }),
+      el("th"),
+    );
+    const table = el("table", {}, el("thead", {}, head), el("tbody", {}, ...menus.map(renderRow)));
+    body.replaceChildren(el("div", { className: "table-scroll" }, table));
+  }
+
+  async function load() {
+    try {
+      menus = await api("?select=*&order=category.asc,name.asc", { headers: { Prefer: "" } });
+      render();
+    } catch (e) {
+      const retry = el("button", { type: "button", textContent: "다시 불러오기" });
+      retry.addEventListener("click", load);
+      $("list-body").replaceChildren(el("div", { className: "error" }, "메뉴를 불러오지 못했습니다.", el("br"), retry));
+    }
+  }
+
+  $("add-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const name = $("f-name").value.trim(), category = $("f-category").value.trim();
+    const price = Number($("f-price").value), stock = Number($("f-stock").value);
+    if (!name || !category || !Number.isInteger(price) || price < 0 || !Number.isInteger(stock) || stock < 0) {
+      return toast("이름, 분류, 가격, 재고를 확인해 주세요.", true);
+    }
+    $("add-btn").disabled = true;
+    try {
+      await api("", { method: "POST", body: JSON.stringify({ name, category, price, stock }) });
+      e.target.reset();
+      toast(`${name} 추가했습니다.`);
+      await load();
+      $("f-name").focus();
+    } catch (err) {
+      toast("추가하지 못했습니다. 다시 시도해 주세요.", true);
+    }
+    $("add-btn").disabled = false;
+  });
+
+  load();
+</script>
+</body>
+</html>
