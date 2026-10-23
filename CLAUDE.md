@@ -33,7 +33,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 로그인 없이 쓰도록 anon에 전체 권한과 RLS 정책(`using (true)`)을 줬다. 의도된 설계다.
 - 판매 입력은 DB 함수 `record_sale(p_menu_id, p_quantity)`(RPC)가 판매 기록과 재고 차감을 한 번에 처리하고 판매 행을 돌려준다. 재고가 모자라면 `out_of_stock` 오류.
 - 발주 입고는 `receive_order(p_order_id)`(RPC)가 발주 상태를 `입고`로 바꾸고 그 메뉴 재고를 수량만큼 늘리는 일을 한 번에 한다. 오류: `already_processed`(이미 입고·취소), `order_not_found`, `menu_not_found`(메뉴가 지워짐, 이때 상태 변경도 되돌아간다). 취소는 `status=eq.발주` 조건을 단 PATCH다.
-- **테이블 정의와 `record_sale`은 이 저장소에 파일로 없다.** Supabase에만 있으니 바꾸면 Supabase 커넥터(`apply_migration`)로 하고, 필요하면 `supabase/migrations/`에 SQL을 남긴다.
+- 테이블과 함수(`record_sale`, `receive_order`)의 SQL은 `supabase/migrations/`에 적용한 순서대로 있다(파일 이름 앞 숫자가 Supabase에 기록된 마이그레이션 버전). DB를 바꿀 때는 Supabase 커넥터의 `apply_migration`으로 적용하고, 같은 SQL을 이 폴더에 새 파일로 남긴다. 샘플 데이터는 마이그레이션에 없다.
 - 지금 들어 있는 데이터는 대부분 시험용 가짜 데이터다(메뉴 19개, 판매 400여 건, 리뷰 40건).
 
 ## AI: Edge Function `cafe-ai`
