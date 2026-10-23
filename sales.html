@@ -157,6 +157,7 @@
   /* 알림 */
   .toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    max-width: calc(100% - 32px);
     padding: 12px 20px; border-radius: var(--radius);
     background: var(--text); color: var(--canvas);
     font-size: 14px; line-height: 22px;
@@ -238,7 +239,8 @@
     try {
       return await fetch(url, options);
     } catch (e) {
-      e.network = true;
+      if (e && e.name === "TimeoutError") e.status = 504; // 기다리는 시간을 넘긴 것은 인터넷 끊김이 아니다
+      else e.network = true;
       throw e;
     }
   }
@@ -257,7 +259,7 @@
     t.classList.toggle("err", !!isError);
     t.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove("show"), 3000);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 3500);
   }
 
   function el(tag, props = {}, ...children) {
@@ -301,11 +303,11 @@
     }
   }
 
-  /* 오늘 판매 목록 */
+  /* 오늘 판매 목록 (오늘은 PC 시간대와 상관없이 한국 시간 기준) */
+  const kstFormat = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" });
   function startOfToday() {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.toISOString();
+    const p = Object.fromEntries(kstFormat.formatToParts(new Date()).map(x => [x.type, x.value]));
+    return new Date(`${p.year}-${p.month}-${p.day}T00:00:00+09:00`).toISOString();
   }
 
   function renderToday(sales) {
@@ -327,7 +329,7 @@
       el("th", { className: "num", textContent: "금액" }),
     );
     const rows = sales.map(r => el("tr", {},
-      el("td", { className: "time", textContent: new Date(r.sold_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }) }),
+      el("td", { className: "time", textContent: new Date(r.sold_at).toLocaleTimeString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }) }),
       el("td", { className: "name", textContent: r.menu_name }),
       el("td", { className: "num", textContent: `${r.quantity}개` }),
       el("td", { className: "num", textContent: won(r.amount) }),
@@ -350,14 +352,27 @@
     renderToday(await api(`sales?select=*&sold_at=gte.${encodeURIComponent(startOfToday())}&order=sold_at.desc`));
   }
 
+  // 메뉴와 오늘 판매를 따로 불러와서, 한쪽만 실패하면 실패한 쪽에만 안내한다. 둘 다 성공했을 때만 true
   async function loadAll() {
-    try {
-      await Promise.all([loadMenus(), loadToday()]);
-    } catch (e) {
+    const [menusResult, todayResult] = await Promise.allSettled([loadMenus(), loadToday()]);
+
+    if (menusResult.status === "rejected") {
+      $("f-menu").replaceChildren(el("option", { value: "", textContent: "메뉴를 불러오지 못했습니다" }));
       const retry = el("button", { type: "button", textContent: "다시 불러오기" });
       retry.addEventListener("click", loadAll);
-      $("list-body").replaceChildren(el("div", { className: "error" }, friendly(e, "메뉴와 오늘 판매를 불러오"), el("br"), retry));
+      const hint = $("hint");
+      hint.className = "hint low";
+      hint.replaceChildren(friendly(menusResult.reason, "메뉴 목록을 불러오"), el("br"), retry);
     }
+
+    if (todayResult.status === "rejected") {
+      ["s-total", "s-count", "s-qty"].forEach(id => { $(id).textContent = "-"; }); // 못 불러왔는데 0원처럼 보이지 않게
+      const retry = el("button", { type: "button", textContent: "다시 불러오기" });
+      retry.addEventListener("click", loadAll);
+      $("list-body").replaceChildren(el("div", { className: "error" }, friendly(todayResult.reason, "오늘 판매를 불러오"), el("br"), retry));
+    }
+
+    return menusResult.status === "fulfilled" && todayResult.status === "fulfilled";
   }
 
   /* 판매 */
@@ -373,9 +388,13 @@
     try {
       await api("rpc/record_sale", { method: "POST", body: JSON.stringify({ p_menu_id: m.id, p_quantity: qty }) });
       $("f-qty").value = 1;
-      await loadAll();
-      const left = menus.find(x => x.id === m.id)?.stock ?? 0;
-      toast(`${m.name} ${qty}개 판매했습니다. 남은 재고 ${left}개` + (left <= LOW_STOCK ? " (재고 부족)" : ""));
+      if (await loadAll()) {
+        const left = menus.find(x => x.id === m.id)?.stock ?? 0;
+        toast(`${m.name} ${qty}개 판매했습니다. 남은 재고 ${left}개` + (left <= LOW_STOCK ? " (재고 부족)" : ""));
+      } else {
+        // 판매는 기록됐지만 목록을 새로 못 불러와서, 맞지 않을 수 있는 남은 재고는 말하지 않는다
+        toast(`${m.name} ${qty}개 판매는 기록했습니다. 다만 목록을 새로 불러오지 못했으니 화면을 새로고침해 확인해 주세요.`, true);
+      }
     } catch (err) {
       const stale = /out_of_stock|menu_not_found/.test(err.message);
       toast(stale
@@ -389,7 +408,7 @@
   $("f-menu").addEventListener("change", updatePreview);
   $("f-qty").addEventListener("input", updatePreview);
 
-  $("today-date").textContent = new Date().toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "long" });
+  $("today-date").textContent = new Date().toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", month: "long", day: "numeric", weekday: "long" });
   loadAll();
 </script>
 </body>

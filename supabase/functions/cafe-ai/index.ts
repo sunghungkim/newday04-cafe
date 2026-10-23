@@ -81,7 +81,10 @@ function num(value: unknown, name: string, required = true): number | null {
 
 async function chat(system: string, user: string, signal: AbortSignal): Promise<string> {
   const key = Deno.env.get("OPENROUTER_API_KEY");
-  if (!key) throw new HttpError(500, "서버에 OPENROUTER_API_KEY 가 설정되어 있지 않습니다.");
+  if (!key) {
+    console.error("OPENROUTER_API_KEY 가 설정되어 있지 않습니다."); // 설정 이름은 서버 로그에만 남기고 응답에는 싣지 않는다
+    throw new HttpError(500, "AI 설정에 문제가 있어 지금은 쓸 수 없습니다.");
+  }
 
   let res: Response;
   try {
@@ -121,7 +124,8 @@ async function chat(system: string, user: string, signal: AbortSignal): Promise<
 // 모델이 ```json 으로 감싸거나 앞뒤에 말을 붙여도 첫 { 부터 마지막 } 까지를 읽는다
 function parseJson(raw: string): Record<string, unknown> {
   const fail = () => {
-    console.error("unreadable ai answer:", raw.slice(0, 400)); // 문제를 찾을 수 있게 앞부분만 남긴다
+    // 손님 리뷰가 섞여 있을 수 있어 길이와 앞 120자만 남긴다
+    console.error(`unreadable ai answer (길이 ${raw.length}):`, raw.slice(0, 120));
     return new HttpError(502, "AI 답을 읽지 못했습니다. 다시 시도해 주세요.");
   };
   const start = raw.indexOf("{");

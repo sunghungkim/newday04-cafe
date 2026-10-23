@@ -227,7 +227,7 @@
     t.classList.toggle("err", !!isError);
     t.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove("show"), 3000);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 3500);
   }
 
   // 인터넷 자체가 끊긴 경우에만 network 표시를 달아, 화면 코드에서 난 오류와 구분한다
@@ -235,7 +235,8 @@
     try {
       return await fetch(url, options);
     } catch (e) {
-      e.network = true;
+      if (e && e.name === "TimeoutError") e.status = 504; // 기다리는 시간을 넘긴 것은 인터넷 끊김이 아니다
+      else e.network = true;
       throw e;
     }
   }
@@ -338,6 +339,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "promo", menu, mood }),
+        signal: AbortSignal.timeout(75_000), // 함수가 최대 3번 다시 해 보는 시간까지만 기다린다
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw Object.assign(new Error(data.error || "promo failed"), { status: res.status });

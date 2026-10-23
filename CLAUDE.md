@@ -21,7 +21,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **디자인 값**: `:root` 색 변수(라이트 21개, 다크 18개, `prefers-color-scheme`)가 다섯 파일에서 값까지 같다. Vapor UI 스타일(흰 표면, 옅은 회색 배경, 1px 선, 파랑 `#2A72E5`, 반경 8px, Pretendard, 굵기 400/500/700만, 그라디언트·블러 없음). 기본 버튼 40px, 목록 안 작은 버튼 36px, 카드 여백 24px(숫자 카드만 20px). 값을 바꿀 때는 모든 페이지를 같이 바꾼다.
 - **오류 문구 도우미**: `netFetch`(인터넷 끊김만 `e.network` 표시), `friendly(e, what)`, `aiFriendly(e, what)`가 페이지마다 복사돼 있다. `what`은 "저장하", "불러오", "만들"처럼 "지 못했습니다" 앞에 붙는 어간이다(예: `friendly(e, "메뉴 목록을 불러오")`). 영어 오류 원문을 화면에 그대로 보이지 않는다.
-- **날짜는 한국 시간(Asia/Seoul)**: 홈은 `Intl`로 계산한다. `sales.html`의 "오늘"은 아직 브라우저 시간으로 계산해서, 한국 시간대가 아닌 PC에서는 홈과 합계가 어긋날 수 있다(알려진 문제).
+- **날짜는 한국 시간(Asia/Seoul)**: "오늘"은 PC 시간대와 상관없이 `Intl`로 한국 날짜를 계산하고(홈, `sales.html`), 시각·날짜 표시에도 `timeZone: "Asia/Seoul"`을 준다.
+- **AI 호출**: 화면은 `AbortSignal.timeout(75_000)`으로 기다리는 시간을 제한한다(함수가 최대 3번 다시 해 보는 시간). `netFetch`는 이 시간 초과를 인터넷 끊김이 아니라 504로 표시한다.
+- 서버는 한 번에 1000행까지만 주므로, 많아질 수 있는 목록은 `limit/offset`으로 나눠 받는다(홈의 7일 판매 `apiAll`, 리뷰 5개씩 쪽 나누기).
 - 사용자 글(리뷰, 메뉴 이름, AI 답글)은 `textContent`/`el()`로만 넣는다. `innerHTML`을 쓰지 않는다.
 
 ## 데이터 (Supabase 프로젝트 `day04-cafe`)

@@ -165,6 +165,7 @@
   /* 알림 */
   .toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    max-width: calc(100% - 32px);
     padding: 12px 20px; border-radius: var(--radius);
     background: var(--text); color: var(--canvas);
     font-size: 14px; line-height: 22px;
@@ -224,10 +225,10 @@
   const IS_ADMIN = (() => {
     try { return JSON.parse(sessionStorage.getItem("cafe-session")).role === "admin"; } catch { return false; }
   })();
-  if (!IS_ADMIN) {
-    $("add-card").hidden = true;
-    $("menu-sub").textContent = "직원은 재고만 고칠 수 있습니다. 메뉴 추가·삭제와 가격 수정은 관리자만 할 수 있습니다. 재고가 5개 이하이면 빨간색으로 표시됩니다.";
-  }
+  if (!IS_ADMIN) $("add-card").hidden = true;
+  $("menu-sub").textContent = IS_ADMIN
+    ? `메뉴를 추가하고 가격과 재고를 고칩니다. 재고가 ${LOW_STOCK}개 이하이면 빨간색으로 표시됩니다.`
+    : `직원은 재고만 고칠 수 있습니다. 메뉴 추가·삭제와 가격 수정은 관리자만 할 수 있습니다. 재고가 ${LOW_STOCK}개 이하이면 빨간색으로 표시됩니다.`;
 
   async function api(query, options = {}) {
     const res = await netFetch(`${SUPABASE_URL}/rest/v1/menus${query}`, {
@@ -252,7 +253,8 @@
     try {
       return await fetch(url, options);
     } catch (e) {
-      e.network = true;
+      if (e && e.name === "TimeoutError") e.status = 504; // 기다리는 시간을 넘긴 것은 인터넷 끊김이 아니다
+      else e.network = true;
       throw e;
     }
   }
@@ -272,10 +274,9 @@
     el.classList.toggle("err", !!isError);
     el.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove("show"), 2500);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 3500);
   }
 
-  const won = n => Number(n).toLocaleString("ko-KR");
   const isLow = stock => stock <= LOW_STOCK;
 
   function el(tag, props = {}, ...children) {
@@ -327,11 +328,17 @@
     async function save() {
       const price = parse(priceIn), stock = parse(stockIn);
       if (!valid(price) || !valid(stock)) return;
+      // 바뀐 칸만 보낸다. 화면을 열어 둔 사이 다른 곳에서 바뀐 값(예: 판매로 줄어든 재고)을 옛 값으로 덮어쓰지 않으려는 것
+      const changes = {};
+      if (price !== m.price) changes.price = price;
+      if (stock !== m.stock) changes.stock = stock;
+      if (!Object.keys(changes).length) return;
       saveBtn.disabled = true;
       try {
-        const [row] = await api(`?id=eq.${m.id}`, { method: "PATCH", body: JSON.stringify({ price, stock }) });
+        const [row] = await api(`?id=eq.${m.id}`, { method: "PATCH", body: JSON.stringify(changes) });
         if (!row) throw Object.assign(new Error("menu not found"), { gone: true }); // 그 사이 지워진 메뉴
         m.price = row.price; m.stock = row.stock;
+        priceIn.value = row.price; stockIn.value = row.stock; // 서버에 실제로 저장된 값을 보여 준다
         toast(`${m.name} 저장했습니다.`);
       } catch (e) {
         toast(friendly(e, `${m.name}의 가격과 재고를 저장하`), true);
