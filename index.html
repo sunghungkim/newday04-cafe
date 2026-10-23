@@ -23,6 +23,8 @@
     --danger: #DA3944;
     --danger-fg: #BB1225;
     --danger-soft: #FFF5F4;
+    --success-soft: #EDFAF4;
+    --star: #FBBD05;
     --bar-muted: #8DCDFF;       /* 그래프에서 강조하지 않는 막대 */
     --radius: 8px;
     --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
@@ -45,6 +47,8 @@
       --danger: #F14F5A;
       --danger-fg: #FD8283;
       --danger-soft: #590000;
+      --success-soft: #003016;
+      --star: #F4B402;
       --bar-muted: #0E5ACB;
     }
   }
@@ -162,8 +166,9 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-sm);
-    padding: 20px;
+    padding: 24px;
   }
+  .kpi.card { padding: 20px; } /* 숫자 카드는 칸이 좁아 여백을 조금 줄인다 */
   .kpi .label { font-size: 14px; line-height: 22px; color: var(--text-hint); }
   .kpi .value { font-size: clamp(22px, 2.9vw, 32px); line-height: 48px; font-weight: 700; letter-spacing: -0.4px; margin: 2px 0; white-space: nowrap; }
   .kpi .value small { font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0; color: var(--text-hint); margin-left: 2px; }
@@ -227,6 +232,7 @@
     .brand { display: none; }
     .nav-btn { white-space: nowrap; }
     .home { padding: 16px; }
+    .card, .kpi.card { padding: 16px; }
     .kpis { grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .kpi .value { font-size: 24px; line-height: 36px; }
     .brief-head { flex-direction: column; align-items: stretch; }
@@ -245,6 +251,7 @@
     <button class="nav-btn" data-page="menu">메뉴</button>
     <button class="nav-btn" data-page="reviews">리뷰</button>
     <button class="nav-btn" data-page="promo">홍보</button>
+    <button class="nav-btn" data-page="rivals">주변카페</button>
   </nav>
 
   <main class="stage">
@@ -278,6 +285,7 @@
     menu:    { label: "메뉴", file: "menu.html" },
     reviews: { label: "리뷰", file: "reviews.html" },
     promo:   { label: "홍보", file: "promo.html" },
+    rivals:  { label: "주변카페", file: "rivals.html" },
   };
 
   const frame = document.getElementById("frame");
@@ -335,9 +343,42 @@
   let homeToken = 0;
 
   async function api(path) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { apikey: SUPABASE_KEY } });
-    if (!res.ok) throw new Error(await res.text() || res.statusText);
+    const res = await netFetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { apikey: SUPABASE_KEY } });
+    if (!res.ok) {
+      const err = new Error(await res.text() || res.statusText);
+      err.status = res.status;
+      throw err;
+    }
     return res.json();
+  }
+
+  // 인터넷 자체가 끊긴 경우에만 network 표시를 달아, 화면 코드에서 난 오류와 구분한다
+  async function netFetch(url, options) {
+    try {
+      return await fetch(url, options);
+    } catch (e) {
+      e.network = true;
+      throw e;
+    }
+  }
+
+  // 오류를 사장님이 알아듣는 말로 바꾼다. what 은 하던 일의 어간("숫자를 불러오"처럼 "지 못했습니다" 앞에 붙는 말)
+  function friendly(e, what) {
+    if (e && e.network) return `인터넷 연결이 불안정해 ${what}지 못했습니다. 연결을 확인하고 다시 눌러 주세요.`;
+    if (e && e.status >= 500) return `서버가 잠시 불안정해 ${what}지 못했습니다. 잠시 뒤 다시 눌러 주세요.`;
+    return `${what}지 못했습니다. 다시 눌러도 안 되면 알려 주세요.`;
+  }
+
+  // AI 기능(cafe-ai)의 오류. 상태 번호별로 무슨 일인지와 할 일을 알려 준다
+  function aiFriendly(e, what) {
+    if (e && e.network) return `인터넷 연결이 불안정해 ${what}지 못했습니다. 연결을 확인하고 다시 눌러 주세요.`;
+    switch (e && e.status) {
+      case 400: return "AI에 보낼 내용이 너무 길거나 비어 있습니다. 내용을 확인하고 다시 눌러 주세요.";
+      case 500: return "AI 기능에 문제가 생겨 지금은 쓸 수 없습니다. 잠시 뒤에도 안 되면 알려 주세요.";
+      case 502: return "AI가 이번에는 답을 제대로 만들지 못했습니다. 한 번 더 눌러 주세요.";
+      case 504: return "AI 응답이 너무 오래 걸립니다. 잠시 뒤 다시 눌러 주세요.";
+      default: return `${what}지 못했습니다. 잠시 뒤 다시 눌러 주세요.`;
+    }
   }
 
   function el(tag, props = {}, ...children) {
@@ -447,18 +488,19 @@
       btn.textContent = "브리핑 만드는 중...";
       out.replaceChildren(el("div", { className: "brief-msg", textContent: "숫자를 정리하고 있습니다. 10초 안팎 걸립니다." }));
       try {
-        const res = await fetch(`${SUPABASE_URL}/functions/v1/cafe-ai`, {
+        const res = await netFetch(`${SUPABASE_URL}/functions/v1/cafe-ai`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: "brief", today: payload }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || "브리핑을 만들지 못했습니다.");
+        if (!res.ok) throw Object.assign(new Error(data.error || "brief failed"), { status: res.status });
+        if (!Array.isArray(data.lines) || !data.lines.length) throw Object.assign(new Error("empty brief"), { status: 502 });
         out.replaceChildren(el("ol", { className: "brief-lines" },
           ...data.lines.map((line, i) => el("li", {}, el("span", { className: "no", textContent: String(i + 1) }), el("span", { textContent: line })))));
         btn.textContent = "다시 브리핑";
       } catch (e) {
-        out.replaceChildren(el("div", { className: "brief-msg err", textContent: e.message || "브리핑을 만들지 못했습니다. 다시 시도해 주세요." }));
+        out.replaceChildren(el("div", { className: "brief-msg err", textContent: aiFriendly(e, "브리핑을 만들") }));
         btn.textContent = "오늘 브리핑";
       }
       btn.disabled = false;
@@ -524,7 +566,7 @@
       if (mine !== homeToken) return;
       const retry = el("button", { type: "button", className: "btn", textContent: "다시 불러오기" });
       retry.addEventListener("click", showHome);
-      body.replaceChildren(el("div", { className: "home-error" }, "데이터를 불러오지 못했습니다.", el("br"), retry));
+      body.replaceChildren(el("div", { className: "home-error" }, friendly(e, "오늘 숫자를 불러오"), el("br"), retry));
     }
     if (mine === homeToken) refresh.disabled = false;
   }

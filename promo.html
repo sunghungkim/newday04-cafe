@@ -23,6 +23,9 @@
     --danger: #DA3944;
     --danger-fg: #BB1225;
     --danger-soft: #FFF5F4;
+    --success-soft: #EDFAF4;
+    --star: #FBBD05;
+    --bar-muted: #8DCDFF;
     --radius: 8px;
     --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
     --font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
@@ -44,6 +47,9 @@
       --danger: #F14F5A;
       --danger-fg: #FD8283;
       --danger-soft: #590000;
+      --success-soft: #003016;
+      --star: #F4B402;
+      --bar-muted: #0E5ACB;
     }
   }
 
@@ -71,7 +77,7 @@
   }
   .card h2 { margin: 0 0 16px; font-size: 18px; line-height: 26px; font-weight: 700; letter-spacing: -0.1px; }
 
-  .form { display: grid; grid-template-columns: 1.4fr 2fr auto; gap: 16px; align-items: end; }
+  .form { display: grid; grid-template-columns: 1.4fr 2fr auto; gap: 12px; align-items: end; }
   .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; border: 0; padding: 0; margin: 0; }
   .field > label, .field > legend { font-size: 14px; line-height: 22px; color: var(--text-normal); font-weight: 500; padding: 0; margin-bottom: 4px; }
   select {
@@ -107,7 +113,7 @@
   button:disabled { opacity: .5; cursor: default; }
   button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
   button.primary:hover:not(:disabled) { background: var(--primary-fg); border-color: var(--primary-fg); }
-  button.small { height: 32px; padding: 0 12px; }
+  button.small { height: 36px; padding: 0 16px; }
 
   .results { display: flex; flex-direction: column; gap: 16px; }
   .result { display: flex; gap: 16px; align-items: flex-start; }
@@ -196,6 +202,35 @@
     toastTimer = setTimeout(() => t.classList.remove("show"), 3000);
   }
 
+  // 인터넷 자체가 끊긴 경우에만 network 표시를 달아, 화면 코드에서 난 오류와 구분한다
+  async function netFetch(url, options) {
+    try {
+      return await fetch(url, options);
+    } catch (e) {
+      e.network = true;
+      throw e;
+    }
+  }
+
+  // 오류를 사장님이 알아듣는 말로 바꾼다. what 은 하던 일의 어간("메뉴를 불러오"처럼 "지 못했습니다" 앞에 붙는 말)
+  function friendly(e, what) {
+    if (e && e.network) return `인터넷 연결이 불안정해 ${what}지 못했습니다. 연결을 확인하고 다시 눌러 주세요.`;
+    if (e && e.status >= 500) return `서버가 잠시 불안정해 ${what}지 못했습니다. 잠시 뒤 다시 눌러 주세요.`;
+    return `${what}지 못했습니다. 다시 눌러도 안 되면 알려 주세요.`;
+  }
+
+  // AI 기능(cafe-ai)의 오류. 상태 번호별로 무슨 일인지와 할 일을 알려 준다
+  function aiFriendly(e, what) {
+    if (e && e.network) return `인터넷 연결이 불안정해 ${what}지 못했습니다. 연결을 확인하고 다시 눌러 주세요.`;
+    switch (e && e.status) {
+      case 400: return "선택한 메뉴로는 문구를 만들 수 없습니다. 메뉴와 분위기를 확인하고 다시 눌러 주세요.";
+      case 500: return "AI 기능에 문제가 생겨 지금은 쓸 수 없습니다. 잠시 뒤에도 안 되면 알려 주세요.";
+      case 502: return "AI가 이번에는 답을 제대로 만들지 못했습니다. 한 번 더 눌러 주세요.";
+      case 504: return "AI 응답이 너무 오래 걸립니다. 잠시 뒤 다시 눌러 주세요.";
+      default: return `${what}지 못했습니다. 잠시 뒤 다시 눌러 주세요.`;
+    }
+  }
+
   /* 분위기 라디오 */
   $("moods").replaceChildren(...MOODS.map((m, i) => el("label", {},
     el("input", { type: "radio", name: "mood", value: m, checked: i === 0 }),
@@ -205,8 +240,8 @@
   async function loadMenus() {
     const sel = $("f-menu");
     try {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/menus?select=id,name&order=category.asc,name.asc`, { headers: { apikey: SUPABASE_KEY } });
-      if (!res.ok) throw new Error();
+      const res = await netFetch(`${SUPABASE_URL}/rest/v1/menus?select=id,name&order=category.asc,name.asc`, { headers: { apikey: SUPABASE_KEY } });
+      if (!res.ok) throw Object.assign(new Error("menus failed"), { status: res.status });
       const menus = await res.json();
       sel.replaceChildren(
         el("option", { value: "", textContent: menus.length ? "메뉴를 선택하세요" : "등록된 메뉴가 없습니다" }),
@@ -214,6 +249,16 @@
       $("make-btn").disabled = !menus.length;
     } catch (e) {
       sel.replaceChildren(el("option", { value: "", textContent: "메뉴를 불러오지 못했습니다" }));
+      toast(friendly(e, "메뉴를 불러오"), true);
+      if (!$("retry-menus")) {
+        const retry = el("button", { type: "button", id: "retry-menus", className: "small", textContent: "다시 불러오기" });
+        retry.addEventListener("click", () => {
+          retry.remove();
+          sel.replaceChildren(el("option", { value: "", textContent: "불러오는 중..." }));
+          loadMenus();
+        });
+        sel.parentElement.append(retry);
+      }
     }
   }
 
@@ -256,16 +301,17 @@
     btn.textContent = "만드는 중...";
     $("result").replaceChildren(el("div", { className: "loading", textContent: "문구를 만들고 있습니다. 10초 안팎 걸립니다." }));
     try {
-      const res = await fetch(AI_URL, {
+      const res = await netFetch(AI_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "promo", menu, mood }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "문구를 만들지 못했습니다.");
+      if (!res.ok) throw Object.assign(new Error(data.error || "promo failed"), { status: res.status });
+      if (!Array.isArray(data.posts) || !data.posts.length) throw Object.assign(new Error("empty promo"), { status: 502 });
       showPosts(menu, mood, data.posts);
     } catch (err) {
-      $("result").replaceChildren(el("div", { className: "error", textContent: err.message || "문구를 만들지 못했습니다. 다시 시도해 주세요." }));
+      $("result").replaceChildren(el("div", { className: "error", textContent: aiFriendly(err, "문구를 만들") }));
     }
     btn.disabled = false;
     btn.textContent = "문구 만들기";

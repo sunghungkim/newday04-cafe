@@ -25,6 +25,7 @@
     --danger-fg: #BB1225;
     --danger-soft: #FFF5F4;
     --star: #FBBD05;
+    --bar-muted: #8DCDFF;
     --radius: 8px;
     --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
     --font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
@@ -48,6 +49,7 @@
       --danger-fg: #FD8283;
       --danger-soft: #590000;
       --star: #F4B402;
+      --bar-muted: #0E5ACB;
     }
   }
 
@@ -75,7 +77,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow-sm);
-    padding: 20px 24px;
+    padding: 24px;
   }
   .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .stars { font-size: 18px; letter-spacing: 1px; color: var(--star); line-height: 24px; }
@@ -113,7 +115,7 @@
 
   .empty, .error { padding: 48px 0; text-align: center; color: var(--text-hint); }
   .error { color: var(--danger-fg); }
-  .error button { margin-top: 12px; }
+  .error button { margin-top: 12px; height: 40px; padding: 0 20px; }
 
   .toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
@@ -170,23 +172,58 @@
   }
 
   async function db(path, options = {}) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    const res = await netFetch(`${SUPABASE_URL}/rest/v1/${path}`, {
       ...options,
       headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=representation", ...(options.headers || {}) },
     });
-    if (!res.ok) throw new Error(await res.text() || res.statusText);
+    if (!res.ok) {
+      const err = new Error(await res.text() || res.statusText);
+      err.status = res.status;
+      throw err;
+    }
     return res.json();
+  }
+
+  // 인터넷 자체가 끊긴 경우에만 network 표시를 달아, 화면 코드에서 난 오류와 구분한다
+  async function netFetch(url, options) {
+    try {
+      return await fetch(url, options);
+    } catch (e) {
+      e.network = true;
+      throw e;
+    }
+  }
+
+  // 오류를 사장님이 알아듣는 말로 바꾼다. what 은 하던 일의 어간("리뷰를 불러오"처럼 "지 못했습니다" 앞에 붙는 말)
+  function friendly(e, what) {
+    if (e && e.network) return `인터넷 연결이 불안정해 ${what}지 못했습니다. 연결을 확인하고 다시 눌러 주세요.`;
+    if (e && e.gone) return `${what}지 못했습니다. 이 리뷰가 다른 곳에서 이미 지워진 것 같아 목록을 새로 불러왔습니다.`;
+    if (e && e.status >= 500) return `서버가 잠시 불안정해 ${what}지 못했습니다. 잠시 뒤 다시 눌러 주세요.`;
+    return `${what}지 못했습니다. 다시 눌러도 안 되면 알려 주세요.`;
+  }
+
+  // AI 기능(cafe-ai)의 오류. 상태 번호별로 무슨 일인지와 할 일을 알려 준다
+  function aiFriendly(e, what) {
+    if (e && e.network) return `인터넷 연결이 불안정해 ${what}지 못했습니다. 연결을 확인하고 다시 눌러 주세요.`;
+    switch (e && e.status) {
+      case 400: return "이 리뷰는 AI로 분석할 수 없습니다. 글이 너무 길거나 비어 있는지 확인해 주세요.";
+      case 500: return "AI 기능에 문제가 생겨 지금은 쓸 수 없습니다. 잠시 뒤에도 안 되면 알려 주세요.";
+      case 502: return "AI가 이번에는 답을 제대로 만들지 못했습니다. 한 번 더 눌러 주세요.";
+      case 504: return "AI 응답이 너무 오래 걸립니다. 잠시 뒤 다시 눌러 주세요.";
+      default: return `${what}지 못했습니다. 잠시 뒤 다시 눌러 주세요.`;
+    }
   }
 
   // cafe-ai 의 review: 감정(좋음/보통/아쉬움)과 답글 초안을 받는다
   async function analyze(review) {
-    const res = await fetch(AI_URL, {
+    const res = await netFetch(AI_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "review", rating: review.rating, content: review.content }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "AI 분석에 실패했습니다.");
+    if (!res.ok) throw Object.assign(new Error(data.error || "analyze failed"), { status: res.status });
+    if (!data.sentiment || !data.reply) throw Object.assign(new Error("empty analysis"), { status: 502 });
     return data;
   }
 
@@ -222,13 +259,17 @@
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       btn.textContent = "분석 중...";
+      let saving = false; // AI 분석은 끝나고 저장하는 중인지
       try {
         const { sentiment, reply } = await analyze(r);
+        saving = true;
         const [saved] = await db(`reviews?id=eq.${r.id}`, { method: "PATCH", body: JSON.stringify({ sentiment, reply }) });
+        if (!saved) throw Object.assign(new Error("review not found"), { gone: true }); // 그 사이 지워진 리뷰
         Object.assign(r, { sentiment: saved.sentiment, reply: saved.reply });
         toast(`분석 결과를 저장했습니다. 감정: ${saved.sentiment}`);
       } catch (e) {
-        toast(e.message || "분석하지 못했습니다. 다시 시도해 주세요.", true);
+        toast(saving ? friendly(e, "분석 결과를 저장하") : aiFriendly(e, "AI 분석을 하"), true);
+        if (e.gone) load();
       }
       render();
     });
@@ -249,7 +290,7 @@
     } catch (e) {
       const retry = el("button", { type: "button", textContent: "다시 불러오기" });
       retry.addEventListener("click", load);
-      $("list").replaceChildren(el("div", { className: "error" }, "리뷰를 불러오지 못했습니다.", el("br"), retry));
+      $("list").replaceChildren(el("div", { className: "error" }, friendly(e, "리뷰를 불러오"), el("br"), retry));
     }
   }
 

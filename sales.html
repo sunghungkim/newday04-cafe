@@ -23,6 +23,9 @@
     --danger: #DA3944;
     --danger-fg: #BB1225;
     --danger-soft: #FFF5F4;
+    --success-soft: #EDFAF4;
+    --star: #FBBD05;
+    --bar-muted: #8DCDFF;
     --radius: 8px;
     --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
     --font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
@@ -44,6 +47,9 @@
       --danger: #F14F5A;
       --danger-fg: #FD8283;
       --danger-soft: #590000;
+      --success-soft: #003016;
+      --star: #F4B402;
+      --bar-muted: #0E5ACB;
     }
   }
 
@@ -211,12 +217,33 @@
   let menus = [];
 
   async function api(path, options = {}) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    const res = await netFetch(`${SUPABASE_URL}/rest/v1/${path}`, {
       ...options,
       headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", ...(options.headers || {}) },
     });
-    if (!res.ok) throw new Error(await res.text() || res.statusText);
+    if (!res.ok) {
+      const err = new Error(await res.text() || res.statusText);
+      err.status = res.status;
+      throw err;
+    }
     return res.json();
+  }
+
+  // 인터넷 자체가 끊긴 경우에만 network 표시를 달아, 화면 코드에서 난 오류와 구분한다
+  async function netFetch(url, options) {
+    try {
+      return await fetch(url, options);
+    } catch (e) {
+      e.network = true;
+      throw e;
+    }
+  }
+
+  // 오류를 사장님이 알아듣는 말로 바꾼다. what 은 하던 일의 어간("판매를 기록하"처럼 "지 못했습니다" 앞에 붙는 말)
+  function friendly(e, what) {
+    if (e && e.network) return `인터넷 연결이 불안정해 ${what}지 못했습니다. 연결을 확인하고 다시 눌러 주세요.`;
+    if (e && e.status >= 500) return `서버가 잠시 불안정해 ${what}지 못했습니다. 잠시 뒤 다시 눌러 주세요.`;
+    return `${what}지 못했습니다. 다시 눌러도 안 되면 알려 주세요.`;
   }
 
   let toastTimer;
@@ -325,7 +352,7 @@
     } catch (e) {
       const retry = el("button", { type: "button", textContent: "다시 불러오기" });
       retry.addEventListener("click", loadAll);
-      $("list-body").replaceChildren(el("div", { className: "error" }, "데이터를 불러오지 못했습니다.", el("br"), retry));
+      $("list-body").replaceChildren(el("div", { className: "error" }, friendly(e, "메뉴와 오늘 판매를 불러오"), el("br"), retry));
     }
   }
 
@@ -347,7 +374,9 @@
       toast(`${m.name} ${qty}개 판매했습니다. 남은 재고 ${left}개` + (left <= LOW_STOCK ? " (재고 부족)" : ""));
     } catch (err) {
       const stale = /out_of_stock|menu_not_found/.test(err.message);
-      toast(stale ? "재고가 바뀌었습니다. 목록을 새로 불러왔으니 다시 확인해 주세요." : "판매를 기록하지 못했습니다. 다시 시도해 주세요.", true);
+      toast(stale
+        ? "그 사이 재고가 바뀌었습니다. 목록을 새로 불러왔으니 메뉴와 수량을 다시 확인해 주세요."
+        : friendly(err, `${m.name} 판매를 기록하`), true);
       if (stale) await loadAll().catch(() => {});
     }
     $("sale-btn").disabled = false;

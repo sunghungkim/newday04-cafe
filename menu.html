@@ -23,6 +23,9 @@
     --danger: #DA3944;
     --danger-fg: #BB1225;
     --danger-soft: #FFF5F4;
+    --success-soft: #EDFAF4;
+    --star: #FBBD05;
+    --bar-muted: #8DCDFF;
     --radius: 8px;
     --shadow-sm: 0 1px 3px rgb(0 0 0 / .20);
     --font: "Pretendard", "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
@@ -44,6 +47,9 @@
       --danger: #F14F5A;
       --danger-fg: #FD8283;
       --danger-soft: #590000;
+      --success-soft: #003016;
+      --star: #F4B402;
+      --bar-muted: #0E5ACB;
     }
   }
 
@@ -209,7 +215,7 @@
   let menus = [];
 
   async function api(query, options = {}) {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/menus${query}`, {
+    const res = await netFetch(`${SUPABASE_URL}/rest/v1/menus${query}`, {
       ...options,
       headers: {
         apikey: SUPABASE_KEY,
@@ -218,8 +224,30 @@
         ...(options.headers || {}),
       },
     });
-    if (!res.ok) throw new Error(await res.text() || res.statusText);
+    if (!res.ok) {
+      const err = new Error(await res.text() || res.statusText);
+      err.status = res.status;
+      throw err;
+    }
     return res.json();
+  }
+
+  // 인터넷 자체가 끊긴 경우에만 network 표시를 달아, 화면 코드에서 난 오류와 구분한다
+  async function netFetch(url, options) {
+    try {
+      return await fetch(url, options);
+    } catch (e) {
+      e.network = true;
+      throw e;
+    }
+  }
+
+  // 오류를 사장님이 알아듣는 말로 바꾼다. what 은 하던 일의 어간("메뉴를 저장하"처럼 "지 못했습니다" 앞에 붙는 말)
+  function friendly(e, what) {
+    if (e && e.network) return `인터넷 연결이 불안정해 ${what}지 못했습니다. 연결을 확인하고 다시 눌러 주세요.`;
+    if (e && e.gone) return `${what}지 못했습니다. 다른 곳에서 이미 지워졌거나 바뀐 것 같아 목록을 새로 불러왔습니다.`;
+    if (e && e.status >= 500) return `서버가 잠시 불안정해 ${what}지 못했습니다. 잠시 뒤 다시 눌러 주세요.`;
+    return `${what}지 못했습니다. 다시 눌러도 안 되면 알려 주세요.`;
   }
 
   let toastTimer;
@@ -283,10 +311,12 @@
       saveBtn.disabled = true;
       try {
         const [row] = await api(`?id=eq.${m.id}`, { method: "PATCH", body: JSON.stringify({ price, stock }) });
+        if (!row) throw Object.assign(new Error("menu not found"), { gone: true }); // 그 사이 지워진 메뉴
         m.price = row.price; m.stock = row.stock;
         toast(`${m.name} 저장했습니다.`);
       } catch (e) {
-        toast("저장하지 못했습니다. 다시 시도해 주세요.", true);
+        toast(friendly(e, `${m.name}의 가격과 재고를 저장하`), true);
+        if (e.gone) load();
       }
       refresh();
     }
@@ -300,7 +330,7 @@
         render();
         toast(`${m.name} 삭제했습니다.`);
       } catch (e) {
-        toast("삭제하지 못했습니다. 다시 시도해 주세요.", true);
+        toast(friendly(e, `${m.name} 메뉴를 삭제하`), true);
         delBtn.disabled = false;
         refresh();
       }
@@ -342,7 +372,7 @@
     } catch (e) {
       const retry = el("button", { type: "button", textContent: "다시 불러오기" });
       retry.addEventListener("click", load);
-      $("list-body").replaceChildren(el("div", { className: "error" }, "메뉴를 불러오지 못했습니다.", el("br"), retry));
+      $("list-body").replaceChildren(el("div", { className: "error" }, friendly(e, "메뉴 목록을 불러오"), el("br"), retry));
     }
   }
 
@@ -351,7 +381,7 @@
     const name = $("f-name").value.trim(), category = $("f-category").value.trim();
     const price = Number($("f-price").value), stock = Number($("f-stock").value);
     if (!name || !category || !Number.isInteger(price) || price < 0 || !Number.isInteger(stock) || stock < 0) {
-      return toast("이름, 분류, 가격, 재고를 확인해 주세요.", true);
+      return toast("이름과 분류를 적고, 가격과 재고는 0 이상의 숫자로 넣어 주세요.", true);
     }
     $("add-btn").disabled = true;
     try {
@@ -361,7 +391,7 @@
       await load();
       $("f-name").focus();
     } catch (err) {
-      toast("추가하지 못했습니다. 다시 시도해 주세요.", true);
+      toast(friendly(err, `${name} 메뉴를 추가하`), true);
     }
     $("add-btn").disabled = false;
   });
